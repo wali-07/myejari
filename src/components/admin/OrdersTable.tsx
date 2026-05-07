@@ -1,6 +1,9 @@
+import Link from "next/link";
+import { FileDown } from "lucide-react";
 import type { Order } from "@/lib/admin/orders";
 import { netRevenueOf } from "@/lib/admin/orders";
 import { formatAED, formatDate } from "@/lib/admin/format";
+import PaymentStatusToggle from "@/components/admin/PaymentStatusToggle";
 
 interface Props {
   orders: Order[];
@@ -46,15 +49,20 @@ export default function OrdersTable({ orders }: Props) {
               <th className="px-3 py-3">Company</th>
               <th className="px-3 py-3">Mobile</th>
               <th className="px-3 py-3">Payment</th>
+              <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3 text-right">GMV</th>
               <th className="px-3 py-3 text-right">Cost</th>
-              <th className="px-5 py-3 text-right">Net Revenue</th>
+              <th className="px-3 py-3 text-right">Net Revenue</th>
+              <th className="px-5 py-3 text-right">PDF</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray">
+                <td
+                  colSpan={10}
+                  className="px-6 py-10 text-center text-sm text-gray"
+                >
                   No orders match the current filters.
                 </td>
               </tr>
@@ -99,6 +107,12 @@ export default function OrdersTable({ orders }: Props) {
                         {o.paymentMethod}
                       </span>
                     </td>
+                    <td className="whitespace-nowrap px-3 py-3">
+                      <PaymentStatusToggle
+                        invoice={o.invoice}
+                        status={o.paymentStatus}
+                      />
+                    </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
                       {formatAED(o.myEjariPrice)}
                     </td>
@@ -106,11 +120,22 @@ export default function OrdersTable({ orders }: Props) {
                       {formatAED(o.wholesalePrice)}
                     </td>
                     <td
-                      className={`whitespace-nowrap px-5 py-3 text-right tabular-nums ${
+                      className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${
                         net < 0 ? "text-coral" : "text-foreground"
                       }`}
                     >
                       {formatAED(net)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right">
+                      <Link
+                        href={`/admin/invoices/${o.invoice}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-dark transition-colors hover:bg-gray-light hover:text-foreground"
+                        title={`Open invoice ${o.invoice} (PDF)`}
+                      >
+                        <FileDown size={14} />
+                      </Link>
                     </td>
                   </tr>
                 );

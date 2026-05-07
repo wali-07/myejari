@@ -1,7 +1,9 @@
-import ordersData from "@/data/orders.json";
+// Pure types + computations — safe to import in client components.
+// File-system reads/writes live in `./orders-store` (server-only).
 
 export type PaymentMethod = "Bank Transfer" | "Card" | "Other";
 export type RefundStatus = "none" | "full" | "partial";
+export type PaymentStatus = "paid" | "unpaid";
 
 export interface Order {
   invoice: string;
@@ -28,6 +30,26 @@ export interface Order {
   /** Margin − gatewayFees (− full refund cost where applicable). */
   finalProfit: number;
   refundStatus: RefundStatus;
+  /** Customer payment state. New orders start unpaid; toggled via Mark Paid. */
+  paymentStatus: PaymentStatus;
+  /** Service location used on the invoice (e.g. "Business Bay"). */
+  serviceLocation?: string;
+  /** Tenancy validity used on the invoice. */
+  validity?: "1 year" | "1 month";
+  /** Whether the package includes inspection. Default true. */
+  inspectionIncluded?: boolean;
+}
+
+/** Compute the next invoice number based on the highest existing INVxxxx. */
+export function nextInvoiceNumber(orders: Order[]): string {
+  const max = orders.reduce((m, o) => {
+    const match = o.invoice.match(/^INV(\d+)$/i);
+    if (!match) return m;
+    const n = Number(match[1]);
+    return n > m ? n : m;
+  }, 0);
+  const next = max + 1;
+  return `INV${String(next).padStart(4, "0")}`;
 }
 
 export type DateRangeKey =
@@ -49,11 +71,9 @@ export function dateRangePresets() {
   return ALL_DATE_RANGES;
 }
 
-/** All orders in chronological order (oldest first). */
-export function getAllOrders(): Order[] {
-  return (ordersData as Order[]).slice().sort((a, b) =>
-    a.date.localeCompare(b.date)
-  );
+/** Sort orders chronologically (oldest first). Pure helper. */
+export function sortOrdersByDate(orders: Order[]): Order[] {
+  return orders.slice().sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Resolve a preset key into a [from, to] inclusive ISO date pair, or null for "all". */
@@ -190,6 +210,11 @@ export interface OrderMetrics {
   refundCount: number;
   paymentBreakdown: Record<PaymentMethod, { count: number; gmv: number }>;
   topWholesalers: { name: string; count: number; gmv: number; margin: number }[];
+}
+
+/** Filter to paid orders only. KPIs only ever reflect collected revenue. */
+export function paidOnly(orders: Order[]): Order[] {
+  return orders.filter((o) => o.paymentStatus === "paid");
 }
 
 /** Compute KPIs + breakdowns from a filtered order set. */

@@ -3,16 +3,22 @@ import KpiTile from "@/components/admin/KpiTile";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import OrdersFilters from "@/components/admin/OrdersFilters";
 import OrdersTable from "@/components/admin/OrdersTable";
+import CreateOrderDrawer from "@/components/admin/CreateOrderDrawer";
 import {
   computeMetrics,
   filterOrdersByRange,
-  getAllOrders,
+  paidOnly,
   resolveCustomRange,
   resolveRange,
   type DateRangeKey,
   type PaymentMethod,
 } from "@/lib/admin/orders";
+import { getAllOrders } from "@/lib/admin/orders-store";
 import { formatAED, formatPct } from "@/lib/admin/format";
+
+// /admin reads from the on-disk JSON and writes via server actions, so we
+// must opt out of static rendering — the data changes between requests.
+export const dynamic = "force-dynamic";
 
 interface Props {
   searchParams: Promise<{
@@ -58,15 +64,13 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
   const query = (sp.q ?? "").trim();
 
   // Apply filters in order: date → payment → search.
-  const all = getAllOrders();
+  const all = await getAllOrders();
   let filtered = filterOrdersByRange(all, range);
   if (activePayment !== "all") {
     filtered = filtered.filter((o) => o.paymentMethod === activePayment);
   }
   if (query) {
     const needle = query.toLowerCase();
-    // Phone-number search: strip non-digits from both query and stored
-    // mobile so users can paste partial numbers in any format.
     const queryDigits = query.replace(/\D/g, "");
     filtered = filtered.filter((o) => {
       const mobileDigits = o.contactMobile.replace(/\D/g, "");
@@ -79,7 +83,9 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
     });
   }
 
-  const metrics = computeMetrics(filtered);
+  // Summary cards always reflect *paid* orders only — unpaid invoices are
+  // promised revenue, not realised revenue.
+  const metrics = computeMetrics(paidOnly(filtered));
 
   // Preserve params across each filter so users can compose them.
   const preservedForDate = {
@@ -109,16 +115,19 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
             Orders
           </h1>
         </div>
-        <DateRangePicker
-          active={activeRange}
-          basePath="/admin"
-          customFrom={customRange?.from}
-          customTo={customRange?.to}
-          preserveParams={preservedForDate}
-        />
+        <div className="flex items-center gap-2">
+          <DateRangePicker
+            active={activeRange}
+            basePath="/admin"
+            customFrom={customRange?.from}
+            customTo={customRange?.to}
+            preserveParams={preservedForDate}
+          />
+          <CreateOrderDrawer />
+        </div>
       </div>
 
-      {/* KPI tiles — title + value only, no extras */}
+      {/* KPI tiles — title + value only, paid orders only */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
           label="Total orders"
@@ -153,7 +162,7 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
         preserveParams={preservedForPayment}
       />
 
-      {/* Orders table */}
+      {/* Orders table — shows ALL filtered orders (paid + unpaid) */}
       <OrdersTable orders={filtered} />
     </div>
   );

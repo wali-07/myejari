@@ -13,7 +13,8 @@
     "commissionPct": 0.14285714285714285,
     "gatewayFees": 0,
     "finalProfit": 400,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0002",
@@ -29,7 +30,8 @@
     "commissionPct": 0.07894736842105263,
     "gatewayFees": 0,
     "finalProfit": 150,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0003",
@@ -45,7 +47,8 @@
     "commissionPct": 0.15870850386539337,
     "gatewayFees": 0,
     "finalProfit": 349,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0004",
@@ -61,7 +64,8 @@
     "commissionPct": 0.15180513266637669,
     "gatewayFees": 39.120000000000005,
     "finalProfit": 309.88,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0006",
@@ -77,7 +81,8 @@
     "commissionPct": 0.15555555555555556,
     "gatewayFees": 0,
     "finalProfit": 350,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0007",
@@ -93,7 +98,8 @@
     "commissionPct": 0.14285714285714285,
     "gatewayFees": 0,
     "finalProfit": 250,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0009",
@@ -109,7 +115,8 @@
     "commissionPct": 0.1345945945945946,
     "gatewayFees": 58.35,
     "finalProfit": 190.65,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0005",
@@ -125,7 +132,8 @@
     "commissionPct": 0.08771929824561403,
     "gatewayFees": 0,
     "finalProfit": 250,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0008",
@@ -141,7 +149,8 @@
     "commissionPct": 0.12456228114057029,
     "gatewayFees": 0,
     "finalProfit": 249,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0010",
@@ -157,7 +166,8 @@
     "commissionPct": 0.14483870967741935,
     "gatewayFees": 97.93,
     "finalProfit": 351.07,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0011",
@@ -173,7 +183,8 @@
     "commissionPct": 0.115,
     "gatewayFees": 0,
     "finalProfit": 299,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0012",
@@ -189,7 +200,8 @@
     "commissionPct": 0.155625,
     "gatewayFees": 51.005,
     "finalProfit": 197.995,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0012",
@@ -205,7 +217,8 @@
     "commissionPct": 0.155625,
     "gatewayFees": 51.005,
     "finalProfit": 197.995,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0013",
@@ -221,7 +234,8 @@
     "commissionPct": 0.1422857142857143,
     "gatewayFees": 55.62,
     "finalProfit": 193.38,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0014",
@@ -237,7 +251,8 @@
     "commissionPct": 0.14705882352941177,
     "gatewayFees": 54.29,
     "finalProfit": 195.71,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0015",
@@ -253,7 +268,8 @@
     "commissionPct": 0.186875,
     "gatewayFees": 0,
     "finalProfit": 299,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0016",
@@ -269,7 +285,8 @@
     "commissionPct": 0.13,
     "gatewayFees": 72,
     "finalProfit": 227,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0017",
@@ -285,7 +302,8 @@
     "commissionPct": 0.13,
     "gatewayFees": 72,
     "finalProfit": 227,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0018",
@@ -301,7 +319,8 @@
     "commissionPct": 0.16666666666666666,
     "gatewayFees": 0,
     "finalProfit": 600,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0019",
@@ -317,7 +336,8 @@
     "commissionPct": 0.13,
     "gatewayFees": 0,
     "finalProfit": 299,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0020",
@@ -333,7 +353,8 @@
     "commissionPct": 0.24068965517241378,
     "gatewayFees": 0,
     "finalProfit": -1799,
-    "refundStatus": "full"
+    "refundStatus": "full",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0021",
@@ -349,7 +370,8 @@
     "commissionPct": 0.13,
     "gatewayFees": 0,
     "finalProfit": 299,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0022",
@@ -365,7 +387,8 @@
     "commissionPct": 0.21695652173913044,
     "gatewayFees": 61.31699999999999,
     "finalProfit": 437.683,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0024",
@@ -381,7 +404,8 @@
     "commissionPct": 0.2604347826086956,
     "gatewayFees": 80.19,
     "finalProfit": 518.81,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0023",
@@ -397,7 +421,8 @@
     "commissionPct": 0.32142857142857145,
     "gatewayFees": 0,
     "finalProfit": 450,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0025",
@@ -413,7 +438,8 @@
     "commissionPct": 0.32071428571428573,
     "gatewayFees": 51.52,
     "finalProfit": 397.48,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0026",
@@ -429,7 +455,8 @@
     "commissionPct": 0.1875,
     "gatewayFees": 0,
     "finalProfit": 0,
-    "refundStatus": "partial"
+    "refundStatus": "partial",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0027",
@@ -445,7 +472,8 @@
     "commissionPct": 0.15346153846153845,
     "gatewayFees": 0,
     "finalProfit": 399,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0028",
@@ -461,7 +489,8 @@
     "commissionPct": 0.3908695652173913,
     "gatewayFees": 88.38,
     "finalProfit": 810.62,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0029",
@@ -477,7 +506,8 @@
     "commissionPct": 0.12121212121212122,
     "gatewayFees": 0,
     "finalProfit": 400,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0030",
@@ -493,7 +523,8 @@
     "commissionPct": 0.13559322033898305,
     "gatewayFees": 0,
     "finalProfit": -85.38999999999999,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0031",
@@ -509,7 +540,8 @@
     "commissionPct": 0.26142857142857145,
     "gatewayFees": 0,
     "finalProfit": 549,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0032",
@@ -525,7 +557,8 @@
     "commissionPct": 0.2260377358490566,
     "gatewayFees": 0,
     "finalProfit": 599,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0033",
@@ -541,7 +574,8 @@
     "commissionPct": 0.33266666666666667,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0034",
@@ -557,7 +591,8 @@
     "commissionPct": 0.45161290322580644,
     "gatewayFees": 14.67,
     "finalProfit": 685.33,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0035",
@@ -573,7 +608,8 @@
     "commissionPct": 0.7993333333333333,
     "gatewayFees": 0,
     "finalProfit": 1199,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0036",
@@ -589,7 +625,8 @@
     "commissionPct": 0.3196,
     "gatewayFees": 91.11,
     "finalProfit": 707.89,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0037",
@@ -605,7 +642,8 @@
     "commissionPct": 0.36363636363636365,
     "gatewayFees": 0,
     "finalProfit": 400,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0038",
@@ -621,7 +659,8 @@
     "commissionPct": 0.23361702127659575,
     "gatewayFees": 0,
     "finalProfit": 549,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0039",
@@ -637,7 +676,8 @@
     "commissionPct": 0.20791666666666667,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0040",
@@ -653,7 +693,8 @@
     "commissionPct": 0.2123404255319149,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0041",
@@ -669,7 +710,8 @@
     "commissionPct": 0.36127659574468085,
     "gatewayFees": 0,
     "finalProfit": 849,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0042",
@@ -685,7 +727,8 @@
     "commissionPct": 0.6915384615384615,
     "gatewayFees": 0,
     "finalProfit": 899,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0043",
@@ -701,7 +744,8 @@
     "commissionPct": 0.6915384615384615,
     "gatewayFees": 61.08,
     "finalProfit": 837.92,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0045",
@@ -717,7 +761,8 @@
     "commissionPct": 0.36318181818181816,
     "gatewayFees": 82.92,
     "finalProfit": 716.08,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0046",
@@ -733,7 +778,8 @@
     "commissionPct": 0.31772727272727275,
     "gatewayFees": 80.19,
     "finalProfit": 618.81,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0047",
@@ -749,7 +795,8 @@
     "commissionPct": 0.4074074074074074,
     "gatewayFees": 0,
     "finalProfit": 550,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0048",
@@ -765,7 +812,8 @@
     "commissionPct": 0.23076923076923078,
     "gatewayFees": 0,
     "finalProfit": 300,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0050",
@@ -781,7 +829,8 @@
     "commissionPct": 0.3523529411764706,
     "gatewayFees": 0,
     "finalProfit": 599,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0052",
@@ -797,7 +846,8 @@
     "commissionPct": 0.29545454545454547,
     "gatewayFees": 78.86,
     "finalProfit": 571.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0053",
@@ -813,7 +863,8 @@
     "commissionPct": 0.24324324324324326,
     "gatewayFees": 51.56,
     "finalProfit": 398.44,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0054",
@@ -829,7 +880,8 @@
     "commissionPct": 0.16897506925207756,
     "gatewayFees": 0,
     "finalProfit": 549,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0055",
@@ -845,7 +897,8 @@
     "commissionPct": 0.453125,
     "gatewayFees": 88.41,
     "finalProfit": 1361.59,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0056",
@@ -861,7 +914,8 @@
     "commissionPct": 0.2047203694202155,
     "gatewayFees": 54.25,
     "finalProfit": 344.75,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0057",
@@ -877,7 +931,8 @@
     "commissionPct": 0.1837809373354397,
     "gatewayFees": 0,
     "finalProfit": 349,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0058",
@@ -893,7 +948,8 @@
     "commissionPct": 0.2797118847539016,
     "gatewayFees": 69.27,
     "finalProfit": 629.73,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0059",
@@ -909,7 +965,8 @@
     "commissionPct": 0.1996798719487795,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0060",
@@ -925,7 +982,8 @@
     "commissionPct": 0.14978744686171544,
     "gatewayFees": 2.1,
     "finalProfit": 596.9,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0062",
@@ -941,7 +999,8 @@
     "commissionPct": 0.12195121951219512,
     "gatewayFees": 56.98,
     "finalProfit": 193.02,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0063",
@@ -957,7 +1016,8 @@
     "commissionPct": 0.19021911718005716,
     "gatewayFees": 88.38,
     "finalProfit": 510.62,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0066",
@@ -973,7 +1033,8 @@
     "commissionPct": 0.12280701754385964,
     "gatewayFees": 78.86,
     "finalProfit": 271.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0067",
@@ -989,7 +1050,8 @@
     "commissionPct": 0.13333333333333333,
     "gatewayFees": 82.95,
     "finalProfit": 317.05,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0068",
@@ -1005,7 +1067,8 @@
     "commissionPct": 0.1935483870967742,
     "gatewayFees": 85.68,
     "finalProfit": 514.3199999999999,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0069",
@@ -1021,7 +1084,8 @@
     "commissionPct": 0.15125795695665353,
     "gatewayFees": 91.11,
     "finalProfit": 407.89,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0070",
@@ -1037,7 +1101,8 @@
     "commissionPct": 0.212856674319449,
     "gatewayFees": 84.28,
     "finalProfit": 564.72,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0070",
@@ -1053,7 +1118,8 @@
     "commissionPct": 0.212856674319449,
     "gatewayFees": 55.62,
     "finalProfit": 593.38,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0072",
@@ -1069,7 +1135,8 @@
     "commissionPct": 0.09090909090909091,
     "gatewayFees": 46.1,
     "finalProfit": 103.9,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0073",
@@ -1085,7 +1152,8 @@
     "commissionPct": 0.12468738835298321,
     "gatewayFees": 77.46,
     "finalProfit": 271.54,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0074",
@@ -1101,7 +1169,8 @@
     "commissionPct": 0.1891891891891892,
     "gatewayFees": 0,
     "finalProfit": 350,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0075",
@@ -1117,7 +1186,8 @@
     "commissionPct": 0.27873429502094,
     "gatewayFees": 0,
     "finalProfit": 599,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0076",
@@ -1133,7 +1203,8 @@
     "commissionPct": 0.179671868747499,
     "gatewayFees": 0,
     "finalProfit": 449,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0077",
@@ -1149,7 +1220,8 @@
     "commissionPct": 0.22007460155985079,
     "gatewayFees": 128.01,
     "finalProfit": 520.99,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0078",
@@ -1165,7 +1237,8 @@
     "commissionPct": 0.23037455105182145,
     "gatewayFees": 54.25,
     "finalProfit": 394.75,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0079",
@@ -1181,7 +1254,8 @@
     "commissionPct": 0.15517241379310345,
     "gatewayFees": 80.22,
     "finalProfit": 369.78,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0080",
@@ -1197,7 +1271,8 @@
     "commissionPct": 0.23037455105182145,
     "gatewayFees": 84.96,
     "finalProfit": 364.04,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0081",
@@ -1213,7 +1288,8 @@
     "commissionPct": 0.21210605302651325,
     "gatewayFees": 55.62,
     "finalProfit": 368.38,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0082",
@@ -1229,7 +1305,8 @@
     "commissionPct": 0.26276987888362296,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0084",
@@ -1245,7 +1322,8 @@
     "commissionPct": 0.2708333333333333,
     "gatewayFees": 53.47,
     "finalProfit": 466.53,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0086",
@@ -1261,7 +1339,8 @@
     "commissionPct": 0.18837297093242733,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0087",
@@ -1277,7 +1356,8 @@
     "commissionPct": 0.118837818528221,
     "gatewayFees": 115.68,
     "finalProfit": 383.32,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0088",
@@ -1293,7 +1373,8 @@
     "commissionPct": 0.23025641025641025,
     "gatewayFees": 66.54,
     "finalProfit": 382.46,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0089",
@@ -1309,7 +1390,8 @@
     "commissionPct": 0.07503607503607504,
     "gatewayFees": 0,
     "finalProfit": 1040,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0091",
@@ -1325,7 +1407,8 @@
     "commissionPct": 0.2030508474576271,
     "gatewayFees": 97.93,
     "finalProfit": 501.07,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0092",
@@ -1341,7 +1424,8 @@
     "commissionPct": 0.10344827586206896,
     "gatewayFees": 175.77,
     "finalProfit": 424.23,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0093",
@@ -1357,7 +1441,8 @@
     "commissionPct": 0.1559375,
     "gatewayFees": 0,
     "finalProfit": 499,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0094",
@@ -1373,7 +1458,8 @@
     "commissionPct": 0.1871875,
     "gatewayFees": 104.76,
     "finalProfit": 494.24,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0095",
@@ -1389,7 +1475,8 @@
     "commissionPct": 0.19047619047619047,
     "gatewayFees": 42,
     "finalProfit": 198,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0096",
@@ -1405,7 +1492,8 @@
     "commissionPct": 0.29352941176470587,
     "gatewayFees": 61.08,
     "finalProfit": 437.92,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0098",
@@ -1421,7 +1509,8 @@
     "commissionPct": 0.25676190476190475,
     "gatewayFees": 91.11,
     "finalProfit": 582.89,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0099",
@@ -1437,7 +1526,8 @@
     "commissionPct": 0.1,
     "gatewayFees": 0,
     "finalProfit": 300,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0101",
@@ -1453,7 +1543,8 @@
     "commissionPct": 0.23076923076923078,
     "gatewayFees": 107.52,
     "finalProfit": 792.48,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0102",
@@ -1469,7 +1560,8 @@
     "commissionPct": 0.23076923076923078,
     "gatewayFees": 54.29,
     "finalProfit": 395.71,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0103",
@@ -1485,7 +1577,8 @@
     "commissionPct": 0.1663887962654218,
     "gatewayFees": 92.92,
     "finalProfit": 406.08,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0105",
@@ -1501,7 +1594,8 @@
     "commissionPct": 0.3246623311655828,
     "gatewayFees": 55.62,
     "finalProfit": 593.38,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0106",
@@ -1517,7 +1611,8 @@
     "commissionPct": 0.26054806437581557,
     "gatewayFees": 63.81,
     "finalProfit": 535.19,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0107",
@@ -1533,7 +1628,8 @@
     "commissionPct": 0.3902439024390244,
     "gatewayFees": 57.02,
     "finalProfit": 742.98,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0109",
@@ -1549,7 +1645,8 @@
     "commissionPct": 0.28102532041262895,
     "gatewayFees": 0,
     "finalProfit": 899,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0110",
@@ -1565,7 +1662,8 @@
     "commissionPct": 0.17543859649122806,
     "gatewayFees": 78.86,
     "finalProfit": 421.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0111",
@@ -1581,7 +1679,8 @@
     "commissionPct": 0.17543859649122806,
     "gatewayFees": 78.86,
     "finalProfit": 421.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0112",
@@ -1597,7 +1696,8 @@
     "commissionPct": 0.2072480181200453,
     "gatewayFees": 0,
     "finalProfit": 549,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0114",
@@ -1613,7 +1713,8 @@
     "commissionPct": 0.2857142857142857,
     "gatewayFees": 48.83,
     "finalProfit": 451.17,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0115",
@@ -1629,7 +1730,8 @@
     "commissionPct": 0.25,
     "gatewayFees": 0,
     "finalProfit": 400,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0116",
@@ -1645,7 +1747,8 @@
     "commissionPct": 0.17543859649122806,
     "gatewayFees": 78.86,
     "finalProfit": 421.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0117",
@@ -1661,7 +1764,8 @@
     "commissionPct": 0.21052631578947367,
     "gatewayFees": 78.86,
     "finalProfit": 521.14,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0118",
@@ -1677,7 +1781,8 @@
     "commissionPct": 0.29310344827586204,
     "gatewayFees": 0,
     "finalProfit": 850,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0119",
@@ -1693,7 +1798,8 @@
     "commissionPct": 0.2631578947368421,
     "gatewayFees": 52.92,
     "finalProfit": 447.08,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0120",
@@ -1709,7 +1815,8 @@
     "commissionPct": 0.28205128205128205,
     "gatewayFees": 54.29,
     "finalProfit": 495.71,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0121",
@@ -1725,7 +1832,8 @@
     "commissionPct": 0.21818181818181817,
     "gatewayFees": 0,
     "finalProfit": 600,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   },
   {
     "invoice": "INV0122",
@@ -1741,6 +1849,7 @@
     "commissionPct": 0.17307692307692307,
     "gatewayFees": 72.03,
     "finalProfit": 377.97,
-    "refundStatus": "none"
+    "refundStatus": "none",
+    "paymentStatus": "paid"
   }
 ]
