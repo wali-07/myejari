@@ -15,6 +15,9 @@ const TONE_CLASSES: Record<NonNullable<KpiTileProps["tone"]>, string> = {
   warning: "bg-amber/15 text-amber",
 };
 
+// Layout: label + icon on the top row, value below using the full card
+// width. Keeps long AED amounts (e.g. "AED 296,205") on a single line on
+// every viewport instead of wrapping a single digit onto its own line.
 export default function KpiTile({
   label,
   value,
@@ -23,23 +26,15 @@ export default function KpiTile({
   tone = "neutral",
 }: KpiTileProps) {
   return (
-    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray sm:text-xs">
-            {label}
-          </p>
-          <p className="mt-2 break-words text-xl font-semibold tracking-tight tabular-nums text-foreground sm:mt-3 sm:text-2xl lg:text-3xl">
-            {value}
-          </p>
-          {sub && (
-            <p className="mt-1.5 text-xs text-gray-dark">{sub}</p>
-          )}
-        </div>
+    <div className="overflow-hidden rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray sm:text-xs">
+          {label}
+        </p>
         <span
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${TONE_CLASSES[tone]}`}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${TONE_CLASSES[tone]}`}
         >
-          <Icon size={16} strokeWidth={2.2} className="sm:hidden" />
+          <Icon size={14} strokeWidth={2.2} className="sm:hidden" />
           <Icon
             size={18}
             strokeWidth={2.2}
@@ -47,6 +42,10 @@ export default function KpiTile({
           />
         </span>
       </div>
+      <p className="mt-3 truncate whitespace-nowrap text-xl font-semibold tracking-tight tabular-nums text-foreground sm:mt-4 sm:text-2xl lg:text-3xl">
+        {value}
+      </p>
+      {sub && <p className="mt-1.5 truncate text-xs text-gray-dark">{sub}</p>}
     </div>
   );
 }
