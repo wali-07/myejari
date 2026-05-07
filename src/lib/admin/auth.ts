@@ -13,13 +13,24 @@
 export const SESSION_COOKIE_NAME = "mye_admin_session";
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
+const DEFAULT_PASSWORD = "Ejari123!!!";
+const DEFAULT_SECRET = "myejari-local-dev-session-secret-change-in-prod";
+
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "admin@myejari.com")
   .trim()
   .toLowerCase();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "Ejari123!!!";
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ??
-  "myejari-local-dev-session-secret-change-in-prod";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? DEFAULT_PASSWORD;
+const SESSION_SECRET = process.env.SESSION_SECRET ?? DEFAULT_SECRET;
+
+// Refuse to authenticate in production if either secret is still the
+// dev default. Stops a missed env-var from leaving the admin wide open
+// after a Vercel deploy. Marketing site stays unaffected.
+function isProductionMisconfigured(): boolean {
+  if (process.env.NODE_ENV !== "production") return false;
+  return (
+    ADMIN_PASSWORD === DEFAULT_PASSWORD || SESSION_SECRET === DEFAULT_SECRET
+  );
+}
 
 /** Constant-time-ish equality for email/password comparison. */
 function safeEqual(a: string, b: string): boolean {
@@ -32,6 +43,12 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export function verifyCredentials(email: string, password: string): boolean {
+  if (isProductionMisconfigured()) {
+    console.error(
+      "[admin/auth] Refusing login: ADMIN_PASSWORD and/or SESSION_SECRET still at default values in production."
+    );
+    return false;
+  }
   const normalizedEmail = email.trim().toLowerCase();
   return (
     safeEqual(normalizedEmail, ADMIN_EMAIL) &&
@@ -70,6 +87,7 @@ export async function signSession(email: string): Promise<string> {
 export async function verifySession(
   token: string | undefined
 ): Promise<string | null> {
+  if (isProductionMisconfigured()) return null;
   if (!token) return null;
   try {
     const dot = token.indexOf(".");
