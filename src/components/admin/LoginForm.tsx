@@ -61,8 +61,7 @@ export default function LoginForm({ from }: Props) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="mt-1.5 h-10 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground placeholder:text-gray focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
-          placeholder="admin@myejari.com"
+          className="mt-1.5 h-10 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
       </div>
 
@@ -80,8 +79,7 @@ export default function LoginForm({ from }: Props) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="mt-1.5 h-10 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground placeholder:text-gray focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
-          placeholder="••••••••"
+          className="mt-1.5 h-10 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
       </div>
 
