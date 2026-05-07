@@ -4,6 +4,11 @@ import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { put, del } from "@vercel/blob";
+// Bundled CRM seed — guaranteed to ship with the function on Vercel
+// because it's a regular import (Next's bundler picks it up). Used as
+// the first-run seed for the Blob store and as a read-only fallback
+// when the local fs file isn't reachable.
+import bundledOrdersData from "@/data/orders.json";
 
 /**
  * Storage abstraction — dev uses the local filesystem, prod uses Vercel
@@ -40,14 +45,26 @@ export async function readOrdersJson(): Promise<unknown[]> {
   if (STORAGE_BACKEND === "blob") {
     return readOrdersJsonFromBlob();
   }
-  const raw = await fs.readFile(ORDERS_FS_PATH, "utf8");
-  return JSON.parse(raw) as unknown[];
+  // fs backend: try the on-disk file (so dev writes are visible). If it
+  // isn't reachable — typically on Vercel without a Blob store — fall
+  // back to the bundled seed so the dashboard at least stays browsable.
+  try {
+    const raw = await fs.readFile(ORDERS_FS_PATH, "utf8");
+    return JSON.parse(raw) as unknown[];
+  } catch {
+    return bundledOrdersData as unknown[];
+  }
 }
 
 export async function writeOrdersJson(orders: unknown[]): Promise<void> {
   if (STORAGE_BACKEND === "blob") {
     await writeOrdersJsonToBlob(orders);
     return;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Persistent writes require Vercel Blob. Connect a Blob store to the project (Storage → Create → Blob) and redeploy."
+    );
   }
   const tmp = ORDERS_FS_PATH + ".tmp";
   await fs.writeFile(tmp, JSON.stringify(orders, null, 2), "utf8");
@@ -72,10 +89,9 @@ async function readOrdersJsonFromBlob(): Promise<unknown[]> {
     return (await res.json()) as unknown[];
   }
 
-  // First-run seed — bundled CRM data is committed at src/data/orders.json
-  // and reachable from the Node runtime via the project root.
-  const seedRaw = await fs.readFile(ORDERS_FS_PATH, "utf8");
-  const seed = JSON.parse(seedRaw) as unknown[];
+  // First-run seed — use the bundled JSON (always available on Vercel
+  // because the static import is included in the function bundle).
+  const seed = bundledOrdersData as unknown[];
   await writeOrdersJsonToBlob(seed);
   return seed;
 }
