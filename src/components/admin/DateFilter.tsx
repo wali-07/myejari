@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { dateRangePresets, type DateRangeKey } from "@/lib/admin/orders";
+import CustomDateRange from "@/components/admin/CustomDateRange";
 
 interface DateFilterProps {
-  active: DateRangeKey;
-  /** Where filter clicks navigate to. Defaults to `/admin`. */
+  active: DateRangeKey | "custom";
   basePath?: string;
-  /** Other URL params to preserve when changing the date filter (e.g. q, payment). */
+  /** Custom-range values when active = "custom". */
+  customFrom?: string;
+  customTo?: string;
+  /** Other URL params to preserve when changing the date filter. */
   preserveParams?: Record<string, string | undefined>;
 }
 
-// Server-side filter — clicking a preset just changes the URL search param;
-// the page re-renders with the filtered metric set. No client state needed.
+// Server component shell — preset chips + a client-side custom-range
+// picker. Selecting a preset clears any custom from/to so the table
+// snaps back to the preset window. Selecting custom dates clears the
+// preset.
 export default function DateFilter({
   active,
   basePath = "/admin",
+  customFrom,
+  customTo,
   preserveParams,
 }: DateFilterProps) {
   function buildHref(rangeKey: DateRangeKey) {
@@ -30,23 +37,26 @@ export default function DateFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {dateRangePresets().map((preset) => {
-        const isActive = preset.key === active;
-        return (
-          <Link
-            key={preset.key}
-            href={buildHref(preset.key)}
-            scroll={false}
-            className={
-              isActive
-                ? "rounded-full bg-foreground px-3.5 py-1.5 text-xs font-semibold text-white"
-                : "rounded-full border border-border bg-white px-3.5 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-primary/30 hover:text-foreground"
-            }
-          >
-            {preset.label}
-          </Link>
-        );
-      })}
+      <div className="inline-flex items-center rounded-full border border-border bg-white p-0.5 text-xs font-medium">
+        {dateRangePresets().map((preset) => {
+          const isActive = preset.key === active;
+          return (
+            <Link
+              key={preset.key}
+              href={buildHref(preset.key)}
+              scroll={false}
+              className={
+                isActive
+                  ? "rounded-full bg-foreground px-3 py-1.5 text-white"
+                  : "rounded-full px-3 py-1.5 text-foreground/70 transition-colors hover:text-foreground"
+              }
+            >
+              {preset.label}
+            </Link>
+          );
+        })}
+      </div>
+      <CustomDateRange from={customFrom} to={customTo} />
     </div>
   );
 }

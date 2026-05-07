@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt } from "lucide-react";
+import { Receipt, FileText } from "lucide-react";
 
 const ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/transactions", label: "Transactions", icon: Receipt },
+  { href: "/admin", label: "Orders", icon: Receipt },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText },
 ];
 
 // Mobile/tablet replacement for the desktop sidebar — surfaces the brand

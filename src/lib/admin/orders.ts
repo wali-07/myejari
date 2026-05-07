@@ -127,6 +127,32 @@ export function calculateGatewayFees(
   );
 }
 
+/**
+ * Per-order Net Revenue = GMV − payment gateway fee − cost.
+ *
+ * Bank Transfer orders carry zero gateway fee, so this collapses to
+ * (GMV − cost) for them. Refund flags are surfaced separately via the
+ * refund badge — this number is the accounting view, not the realised one.
+ */
+export function netRevenueOf(order: Order): number {
+  return order.myEjariPrice - order.gatewayFees - order.wholesalePrice;
+}
+
+/**
+ * Validate + normalise a custom (`from`, `to`) date pair for the date filter.
+ * Returns `null` for malformed input so the page can fall back to a preset.
+ */
+export function resolveCustomRange(
+  from: string | undefined,
+  to: string | undefined
+): { from: string; to: string } | null {
+  if (!from || !to) return null;
+  const ok = /^\d{4}-\d{2}-\d{2}$/;
+  if (!ok.test(from) || !ok.test(to)) return null;
+  if (from > to) return { from: to, to: from };
+  return { from, to };
+}
+
 /** Monthly trend buckets — used by the dashboard chart. */
 export interface MonthlyBucket {
   /** `YYYY-MM`. */
@@ -173,7 +199,9 @@ export function computeMetrics(orders: Order[]): OrderMetrics {
   const totalCost = orders.reduce((s, o) => s + o.wholesalePrice, 0);
   const totalMargin = orders.reduce((s, o) => s + o.margin, 0);
   const totalGatewayFees = orders.reduce((s, o) => s + o.gatewayFees, 0);
-  const netRevenue = orders.reduce((s, o) => s + o.finalProfit, 0);
+  // Aggregate Net Revenue uses the same formula as per-row netRevenueOf:
+  // GMV − gateway fees − cost. This matches the column total in the table.
+  const netRevenue = orders.reduce((s, o) => s + netRevenueOf(o), 0);
   const averageCommissionPct =
     count === 0
       ? 0

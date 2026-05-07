@@ -2,12 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Receipt,
-  FileText,
-  type LucideIcon,
-} from "lucide-react";
+import { Receipt, FileText, type LucideIcon } from "lucide-react";
+import SignOutButton from "@/components/admin/SignOutButton";
 
 interface NavItem {
   href: string;
@@ -19,8 +15,7 @@ interface NavItem {
 }
 
 const ITEMS: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/transactions", label: "Transactions", icon: Receipt },
+  { href: "/admin", label: "Orders", icon: Receipt },
   { href: "/admin/invoices", label: "Invoices", icon: FileText, soon: true },
 ];
 
@@ -103,9 +98,9 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* Footer / status */}
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex items-center gap-2.5">
+      {/* Footer / status + sign out */}
+      <div className="space-y-3 border-t border-border px-3 py-3">
+        <div className="flex items-center gap-2.5 px-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
@@ -114,6 +109,7 @@ export default function Sidebar() {
             Live · CRM synced
           </span>
         </div>
+        <SignOutButton />
       </div>
     </aside>
   );

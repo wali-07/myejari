@@ -1,21 +1,24 @@
-import DateFilter from "@/components/admin/DateFilter";
-import TransactionsFilters from "@/components/admin/TransactionsFilters";
-import OrdersTable from "@/components/admin/OrdersTable";
+import { Receipt, TrendingUp, Wallet, Percent } from "lucide-react";
 import KpiTile from "@/components/admin/KpiTile";
+import DateFilter from "@/components/admin/DateFilter";
+import OrdersFilters from "@/components/admin/OrdersFilters";
+import OrdersTable from "@/components/admin/OrdersTable";
 import {
   computeMetrics,
   filterOrdersByRange,
   getAllOrders,
+  resolveCustomRange,
   resolveRange,
   type DateRangeKey,
   type PaymentMethod,
 } from "@/lib/admin/orders";
 import { formatAED, formatDate, formatPct } from "@/lib/admin/format";
-import { Receipt, TrendingUp, Wallet, Percent } from "lucide-react";
 
 interface Props {
   searchParams: Promise<{
     range?: string;
+    from?: string;
+    to?: string;
     payment?: string;
     q?: string;
   }>;
@@ -34,13 +37,19 @@ const VALID_PAYMENTS: ("all" | PaymentMethod)[] = [
   "Card",
 ];
 
-export default async function TransactionsPage({ searchParams }: Props) {
+export default async function AdminOrdersPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const activeRange: DateRangeKey = VALID_RANGES.includes(
-    (sp.range ?? "all") as DateRangeKey
-  )
-    ? ((sp.range ?? "all") as DateRangeKey)
-    : "all";
+
+  // Resolve filters from URL state.
+  const customRange = resolveCustomRange(sp.from, sp.to);
+  const presetKey = (sp.range ?? "all") as DateRangeKey;
+  const activeRange: DateRangeKey | "custom" = customRange
+    ? "custom"
+    : VALID_RANGES.includes(presetKey)
+      ? presetKey
+      : "all";
+  const range = customRange ?? resolveRange(presetKey);
+
   const activePayment: "all" | PaymentMethod = VALID_PAYMENTS.includes(
     (sp.payment ?? "all") as "all" | PaymentMethod
   )
@@ -48,10 +57,9 @@ export default async function TransactionsPage({ searchParams }: Props) {
     : "all";
   const query = (sp.q ?? "").trim();
 
+  // Apply filters in order: date → payment → search.
   const all = getAllOrders();
-  const range = resolveRange(activeRange);
   let filtered = filterOrdersByRange(all, range);
-
   if (activePayment !== "all") {
     filtered = filtered.filter((o) => o.paymentMethod === activePayment);
   }
@@ -79,34 +87,38 @@ export default async function TransactionsPage({ searchParams }: Props) {
     q: query || undefined,
   };
   const preservedForPayment = {
-    range: activeRange !== "all" ? activeRange : undefined,
+    range: customRange ? undefined : activeRange !== "all" ? activeRange : undefined,
+    from: customRange?.from,
+    to: customRange?.to,
     q: query || undefined,
   };
 
   return (
     <div className="space-y-7">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray">
-            Detail
+            Workspace · Orders
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground sm:text-[34px]">
-            Transactions
+            Orders
           </h1>
-          <p className="mt-1 text-sm text-gray-dark">{rangeText}</p>
+          <p className="mt-1 text-sm text-gray-dark tabular-nums">{rangeText}</p>
         </div>
         <DateFilter
           active={activeRange}
-          basePath="/admin/transactions"
+          basePath="/admin"
+          customFrom={customRange?.from}
+          customTo={customRange?.to}
           preserveParams={preservedForDate}
         />
       </div>
 
-      {/* KPI tiles for the filtered set */}
+      {/* KPI tiles */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
-          label="Filtered orders"
+          label="Total orders"
           value={metrics.count.toLocaleString("en-AE")}
           sub={
             metrics.refundCount > 0
@@ -117,7 +129,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
           tone="primary"
         />
         <KpiTile
-          label="GMV"
+          label="GMV (customer paid)"
           value={formatAED(metrics.gmv)}
           sub={`Cost: ${formatAED(metrics.totalCost)}`}
           icon={TrendingUp}
@@ -126,27 +138,27 @@ export default async function TransactionsPage({ searchParams }: Props) {
         <KpiTile
           label="Net revenue"
           value={formatAED(metrics.netRevenue)}
-          sub={`Gateway fees: ${formatAED(metrics.totalGatewayFees)}`}
+          sub={`GMV − gateway − cost · gateway: ${formatAED(metrics.totalGatewayFees)}`}
           icon={Wallet}
           tone="warning"
         />
         <KpiTile
           label="Avg commission"
           value={formatPct(metrics.averageCommissionPct)}
-          sub={`Margin: ${formatAED(metrics.totalMargin)}`}
+          sub={`Margin: ${formatAED(metrics.totalMargin)} (before gateway)`}
           icon={Percent}
           tone="neutral"
         />
       </div>
 
-      {/* Filters row */}
-      <TransactionsFilters
+      {/* Filters row (payment + search) */}
+      <OrdersFilters
         payment={activePayment}
         query={query}
         preserveParams={preservedForPayment}
       />
 
-      {/* Full table */}
+      {/* Orders table */}
       <OrdersTable orders={filtered} />
     </div>
   );
