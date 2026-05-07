@@ -1,6 +1,6 @@
 import { Receipt, TrendingUp, Wallet, Percent } from "lucide-react";
 import KpiTile from "@/components/admin/KpiTile";
-import DateFilter from "@/components/admin/DateFilter";
+import DateRangePicker from "@/components/admin/DateRangePicker";
 import OrdersFilters from "@/components/admin/OrdersFilters";
 import OrdersTable from "@/components/admin/OrdersTable";
 import {
@@ -12,7 +12,7 @@ import {
   type DateRangeKey,
   type PaymentMethod,
 } from "@/lib/admin/orders";
-import { formatAED, formatDate, formatPct } from "@/lib/admin/format";
+import { formatAED, formatPct } from "@/lib/admin/format";
 
 interface Props {
   searchParams: Promise<{
@@ -65,21 +65,21 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
   }
   if (query) {
     const needle = query.toLowerCase();
-    filtered = filtered.filter(
-      (o) =>
+    // Phone-number search: strip non-digits from both query and stored
+    // mobile so users can paste partial numbers in any format.
+    const queryDigits = query.replace(/\D/g, "");
+    filtered = filtered.filter((o) => {
+      const mobileDigits = o.contactMobile.replace(/\D/g, "");
+      return (
         o.company.toLowerCase().includes(needle) ||
         o.invoice.toLowerCase().includes(needle) ||
-        o.wholesaler.toLowerCase().includes(needle)
-    );
+        o.wholesaler.toLowerCase().includes(needle) ||
+        (queryDigits.length >= 3 && mobileDigits.includes(queryDigits))
+      );
+    });
   }
 
   const metrics = computeMetrics(filtered);
-
-  const rangeText = range
-    ? `${formatDate(range.from)} – ${formatDate(range.to)}`
-    : `${formatDate(all[0]?.date ?? "")} – ${formatDate(
-        all[all.length - 1]?.date ?? ""
-      )}`;
 
   // Preserve params across each filter so users can compose them.
   const preservedForDate = {
@@ -87,7 +87,11 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
     q: query || undefined,
   };
   const preservedForPayment = {
-    range: customRange ? undefined : activeRange !== "all" ? activeRange : undefined,
+    range: customRange
+      ? undefined
+      : activeRange !== "all"
+        ? activeRange
+        : undefined,
     from: customRange?.from,
     to: customRange?.to,
     q: query || undefined,
@@ -99,14 +103,13 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray">
-            Workspace · Orders
+            Workspace
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground sm:text-[34px]">
             Orders
           </h1>
-          <p className="mt-1 text-sm text-gray-dark tabular-nums">{rangeText}</p>
         </div>
-        <DateFilter
+        <DateRangePicker
           active={activeRange}
           basePath="/admin"
           customFrom={customRange?.from}
@@ -115,37 +118,29 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* KPI tiles */}
+      {/* KPI tiles — title + value only, no extras */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
           label="Total orders"
           value={metrics.count.toLocaleString("en-AE")}
-          sub={
-            metrics.refundCount > 0
-              ? `${metrics.refundCount} refunded`
-              : "No refunds"
-          }
           icon={Receipt}
           tone="primary"
         />
         <KpiTile
-          label="GMV (customer paid)"
+          label="GMV"
           value={formatAED(metrics.gmv)}
-          sub={`Cost: ${formatAED(metrics.totalCost)}`}
           icon={TrendingUp}
           tone="success"
         />
         <KpiTile
           label="Net revenue"
           value={formatAED(metrics.netRevenue)}
-          sub={`GMV − gateway − cost · gateway: ${formatAED(metrics.totalGatewayFees)}`}
           icon={Wallet}
           tone="warning"
         />
         <KpiTile
           label="Avg commission"
           value={formatPct(metrics.averageCommissionPct)}
-          sub={`Margin: ${formatAED(metrics.totalMargin)} (before gateway)`}
           icon={Percent}
           tone="neutral"
         />

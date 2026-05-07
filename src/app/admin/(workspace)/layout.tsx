@@ -14,7 +14,7 @@ export default function AdminWorkspaceLayout({
         <div className="flex w-full min-w-0 flex-1 flex-col">
           <MobileTopBar />
           <main className="flex-1">
-            <div className="mx-auto w-full max-w-7xl px-5 py-7 sm:px-8 sm:py-10">
+            <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-10">
               {children}
             </div>
           </main>

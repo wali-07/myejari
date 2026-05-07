@@ -67,10 +67,10 @@ export default function OrdersTable({ orders }: Props) {
                     key={o.invoice + o.date + o.company}
                     className="border-t border-border/60 transition-colors hover:bg-primary-light/20"
                   >
-                    <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">
+                    <td className="whitespace-nowrap px-5 py-3 text-foreground">
                       {o.invoice}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-foreground/70">
+                    <td className="whitespace-nowrap px-3 py-3 text-foreground">
                       {formatDate(o.date)}
                     </td>
                     <td
@@ -85,7 +85,7 @@ export default function OrdersTable({ orders }: Props) {
                       )}
                     </td>
                     <td
-                      className="max-w-[160px] truncate whitespace-nowrap px-3 py-3 font-mono text-[12px] text-foreground/70"
+                      className="max-w-[160px] truncate whitespace-nowrap px-3 py-3 text-foreground"
                       title={o.contactMobile}
                     >
                       {o.contactMobile || "—"}
@@ -99,14 +99,14 @@ export default function OrdersTable({ orders }: Props) {
                         {o.paymentMethod}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums font-medium text-foreground">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
                       {formatAED(o.myEjariPrice)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground/70">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
                       {formatAED(o.wholesalePrice)}
                     </td>
                     <td
-                      className={`whitespace-nowrap px-5 py-3 text-right tabular-nums font-semibold ${
+                      className={`whitespace-nowrap px-5 py-3 text-right tabular-nums ${
                         net < 0 ? "text-coral" : "text-foreground"
                       }`}
                     >
