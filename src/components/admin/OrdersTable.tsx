@@ -38,7 +38,7 @@ export default function OrdersTable({ orders }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-light/40 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-dark">
-              <th className="px-5 py-3">Invoice #</th>
+              <th className="px-5 py-3">#</th>
               <th className="px-3 py-3">Date</th>
               <th className="px-3 py-3">Company</th>
               <th className="px-3 py-3">Mobile</th>
