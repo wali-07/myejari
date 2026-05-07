@@ -44,4 +44,3 @@ next-env.d.ts
 # Claude Code local settings (machine-specific)
 .claude/
 data/admin-uploads/
-data/invoice-counter.json

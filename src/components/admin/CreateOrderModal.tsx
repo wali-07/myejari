@@ -240,7 +240,7 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                             Upload Trade License
                           </p>
                           <p className="mt-0.5 text-[11px] text-gray">
-                            PDF · We&apos;ll auto-extract the company
+                            PDF or image · auto-extracts on PDF
                           </p>
                         </div>
                       </>
@@ -248,7 +248,7 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="application/pdf,.pdf"
+                      accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.heif"
                       onChange={onPick}
                       className="hidden"
                     />
@@ -411,6 +411,32 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                   </Field>
                 </div>
 
+                {/* Live preview — vertical card, in the form body */}
+                <div className="mt-5 rounded-2xl border border-border bg-gradient-to-br from-gray-light/50 via-white to-gray-light/40 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
+                    Preview
+                  </p>
+                  <dl className="mt-2 space-y-1.5 text-sm">
+                    <SummaryRow label="GMV" value={formatAED(myEjariPrice)} />
+                    <SummaryRow label="Cost" value={formatAED(wholesalePrice)} />
+                    <SummaryRow
+                      label={
+                        form.paymentMethod === "Card"
+                          ? "Gateway fee (2.6% + 1)"
+                          : "Gateway fee"
+                      }
+                      value={formatAED(previewGateway)}
+                    />
+                    <div className="my-1 h-px bg-border" />
+                    <SummaryRow
+                      label="Net revenue"
+                      value={formatAED(previewNet)}
+                      bold
+                      danger={previewNet < 0}
+                    />
+                  </dl>
+                </div>
+
                 {error && (
                   <p
                     role="alert"
@@ -421,57 +447,35 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                 )}
               </div>
 
-              {/* Footer — preview + actions, sticks to bottom */}
-              <footer className="border-t border-border bg-gray-light/40 px-5 py-3.5 sm:px-6">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-                  <PreviewRow label="GMV" value={formatAED(myEjariPrice)} />
-                  <PreviewRow label="Cost" value={formatAED(wholesalePrice)} />
-                  <PreviewRow
-                    label="Gateway"
-                    value={formatAED(previewGateway)}
-                  />
-                  <div className="col-span-2 flex items-baseline justify-between border-t border-border/70 pt-2 sm:col-span-3">
-                    <span className="text-xs font-semibold text-foreground/70">
-                      Net revenue
-                    </span>
-                    <span
-                      className={`text-base font-semibold tabular-nums ${
-                        previewNet < 0 ? "text-coral" : "text-foreground"
-                      }`}
-                    >
-                      {formatAED(previewNet)}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-3.5 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => !submitting && setOpen(false)}
-                    className="inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:h-9 sm:text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !canSubmit}
-                    className="group inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-foreground px-4 text-sm font-semibold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:flex-initial sm:text-xs"
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        Creating…
-                      </>
-                    ) : (
-                      <>
-                        Create order
-                        <ArrowRight
-                          size={14}
-                          className="transition-transform group-hover:translate-x-0.5"
-                        />
-                      </>
-                    )}
-                  </button>
-                </div>
+              {/* Footer — sticky action bar */}
+              <footer className="flex items-center justify-end gap-2 border-t border-border bg-white px-5 py-3.5 sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => !submitting && setOpen(false)}
+                  className="inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:h-9 sm:text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !canSubmit}
+                  className="group inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-foreground px-4 text-sm font-semibold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:flex-initial sm:text-xs"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Creating…
+                    </>
+                  ) : (
+                    <>
+                      Create order
+                      <ArrowRight
+                        size={14}
+                        className="transition-transform group-hover:translate-x-0.5"
+                      />
+                    </>
+                  )}
+                </button>
               </footer>
             </form>
           </div>
@@ -564,15 +568,31 @@ function CurrencyInput({
   );
 }
 
-function PreviewRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({
+  label,
+  value,
+  bold,
+  danger,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  danger?: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-1 sm:flex-col sm:items-start">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
+    <div className="flex items-baseline justify-between">
+      <dt
+        className={`text-xs ${bold ? "font-semibold" : ""} text-foreground/70`}
+      >
         {label}
-      </span>
-      <span className="text-sm font-medium tabular-nums text-foreground/85 sm:text-xs">
+      </dt>
+      <dd
+        className={`tabular-nums ${
+          bold ? "text-base font-semibold" : "text-xs"
+        } ${danger ? "text-coral" : "text-foreground"}`}
+      >
         {value}
-      </span>
+      </dd>
     </div>
   );
 }

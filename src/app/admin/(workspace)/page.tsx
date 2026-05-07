@@ -79,8 +79,15 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-7">
-      {/* Page header — Create order action only */}
-      <div className="flex items-center justify-end">
+      {/* Top action row — date filter on the left, Create order on the right */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <DateRangePicker
+          active={activeRange}
+          basePath="/admin"
+          customFrom={customRange?.from}
+          customTo={customRange?.to}
+          preserveParams={preservedForDate}
+        />
         <CreateOrderModal wholesalers={wholesalers} />
       </div>
 
@@ -112,19 +119,8 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* Filters row — search + date picker */}
-      <OrdersFilters
-        query={query}
-        rightSlot={
-          <DateRangePicker
-            active={activeRange}
-            basePath="/admin"
-            customFrom={customRange?.from}
-            customTo={customRange?.to}
-            preserveParams={preservedForDate}
-          />
-        }
-      />
+      {/* Filters row — search only */}
+      <OrdersFilters query={query} />
 
       {/* Orders table — shows ALL filtered orders (paid + unpaid) */}
       <OrdersTable orders={filtered} />

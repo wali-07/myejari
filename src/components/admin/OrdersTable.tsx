@@ -3,7 +3,7 @@ import { FileDown } from "lucide-react";
 import type { Order } from "@/lib/admin/orders";
 import { netRevenueOf } from "@/lib/admin/orders";
 import { formatAED, formatDate } from "@/lib/admin/format";
-import PaymentStatusToggle from "@/components/admin/PaymentStatusToggle";
+import OrderPaymentStatus from "@/components/admin/OrderPaymentStatus";
 import DeleteOrderButton from "@/components/admin/DeleteOrderButton";
 
 interface Props {
@@ -103,10 +103,7 @@ export default function OrdersTable({ orders }: Props) {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
-                      <PaymentStatusToggle
-                        invoice={o.invoice}
-                        status={o.paymentStatus}
-                      />
+                      <OrderPaymentStatus order={o} />
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
                       {formatAED(o.myEjariPrice)}

@@ -9,6 +9,8 @@ interface Props {
   placeholder?: string;
   /** Debounce delay before pushing to URL. */
   delayMs?: number;
+  /** When true, the input takes 100% of its parent's width. */
+  fullWidth?: boolean;
 }
 
 // Live debounced search — updates the URL `q` param 250ms after the last
@@ -18,6 +20,7 @@ export default function SearchInput({
   defaultValue = "",
   placeholder = "Search company, invoice, wholesaler…",
   delayMs = 250,
+  fullWidth = false,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -47,7 +50,7 @@ export default function SearchInput({
   }, [value]);
 
   return (
-    <div className="relative w-full sm:w-72">
+    <div className={fullWidth ? "relative w-full" : "relative w-full sm:w-72"}>
       <Search
         size={14}
         className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray"

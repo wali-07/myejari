@@ -3,12 +3,11 @@
 import { revalidatePath } from "next/cache";
 import {
   calculateGatewayFees,
+  nextInvoiceNumber,
   type Order,
   type PaymentMethod,
-  type PaymentStatus,
 } from "@/lib/admin/orders";
 import {
-  consumeNextInvoiceNumber,
   deleteUnpaidOrder,
   readOrders,
   writeOrders,
@@ -58,10 +57,10 @@ export async function createOrder(
   if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
     return { ok: false, error: "Wholesale price must be ≥ 0" };
 
-  // Reserve the next invoice number atomically (counter persists across
-  // deletions so numbers are strictly monotonic).
-  const invoice = await consumeNextInvoiceNumber();
+  // Invoice number = max(existing) + 1. Deleting an unpaid order frees up
+  // its number — the next created order will reuse it.
   const orders = await readOrders();
+  const invoice = nextInvoiceNumber(orders);
 
   const gatewayFees = calculateGatewayFees(
     input.myEjariPrice,
@@ -112,19 +111,21 @@ export async function deleteOrder(
   return result;
 }
 
-/** Toggle an order's payment status. Used by the Mark Paid / Mark Unpaid pill. */
-export async function setPaymentStatus(
-  invoice: string,
-  status: PaymentStatus
+/**
+ * Mark an order as paid. Paid is a one-way transition — once an order is
+ * marked paid, it can't be reverted to unpaid (paid invoices represent
+ * collected revenue and shouldn't be quietly walked back).
+ */
+export async function markOrderPaid(
+  invoice: string
 ): Promise<{ ok: boolean; error?: string }> {
-  if (status !== "paid" && status !== "unpaid")
-    return { ok: false, error: "Invalid status" };
-
   const orders = await readOrders();
   const idx = orders.findIndex((o) => o.invoice === invoice);
   if (idx < 0) return { ok: false, error: "Order not found" };
-
-  orders[idx] = { ...orders[idx], paymentStatus: status };
+  if (orders[idx].paymentStatus === "paid") {
+    return { ok: false, error: "Order is already marked as paid" };
+  }
+  orders[idx] = { ...orders[idx], paymentStatus: "paid" };
   await writeOrders(orders);
   revalidatePath("/admin");
   return { ok: true };

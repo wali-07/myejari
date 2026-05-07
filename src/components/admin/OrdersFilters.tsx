@@ -2,16 +2,16 @@ import SearchInput from "@/components/admin/SearchInput";
 
 interface Props {
   query: string;
-  /** Slot for the date picker, rendered to the right of the search bar. */
-  rightSlot?: React.ReactNode;
 }
 
-// Filters row for the orders page: search + date picker side-by-side.
-export default function OrdersFilters({ query, rightSlot }: Props) {
+// Search bar row. Full-width on mobile, fixed-width and right-aligned on
+// desktop. Date filtering lives above the summary cards now.
+export default function OrdersFilters({ query }: Props) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <SearchInput defaultValue={query} />
-      {rightSlot}
+    <div className="flex">
+      <div className="w-full sm:ml-auto sm:w-72">
+        <SearchInput defaultValue={query} fullWidth />
+      </div>
     </div>
   );
 }

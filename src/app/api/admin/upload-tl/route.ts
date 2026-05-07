@@ -15,7 +15,8 @@ function safeName(original: string): string {
     .replace(/[^A-Za-z0-9_-]+/g, "-")
     .slice(0, 60);
   const stamp = Date.now();
-  return `${stamp}-${base}${ext || ".pdf"}`;
+  // Default to .pdf extension only if none was provided.
+  return `${stamp}-${base}${ext || ".bin"}`;
 }
 
 // POST /api/admin/upload-tl
@@ -50,9 +51,18 @@ export async function POST(request: Request) {
       { status: 413 }
     );
   }
-  if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+  // Accept PDFs and common image formats. PDFs go through pdf2json;
+  // images are stored as-is and the admin types the company name in
+  // (image OCR isn't wired up yet).
+  const lowerName = file.name.toLowerCase();
+  const isPdf = file.type.includes("pdf") || lowerName.endsWith(".pdf");
+  const isImage =
+    file.type.startsWith("image/") ||
+    /\.(png|jpg|jpeg|webp|heic|heif)$/i.test(lowerName);
+
+  if (!isPdf && !isImage) {
     return NextResponse.json(
-      { error: "Only PDF trade licenses are supported right now" },
+      { error: "Upload a PDF or an image of the trade license" },
       { status: 415 }
     );
   }
@@ -65,12 +75,13 @@ export async function POST(request: Request) {
   const fullPath = path.join(UPLOAD_DIR, fileName);
   await fs.writeFile(fullPath, buffer);
 
-  let extraction;
-  try {
-    extraction = await extractTradeLicense(buffer);
-  } catch (err) {
-    console.error("[upload-tl] extraction failed:", err);
-    extraction = { companyName: "", rawText: "", highConfidence: false };
+  let extraction = { companyName: "", rawText: "", highConfidence: false };
+  if (isPdf) {
+    try {
+      extraction = await extractTradeLicense(buffer);
+    } catch (err) {
+      console.error("[upload-tl] extraction failed:", err);
+    }
   }
 
   return NextResponse.json({

@@ -23,13 +23,13 @@ export default function KpiTile({
   tone = "neutral",
 }: KpiTileProps) {
   return (
-    <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray">
+    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray sm:text-xs">
             {label}
           </p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground tabular-nums sm:text-3xl">
+          <p className="mt-2 break-words text-xl font-semibold tracking-tight tabular-nums text-foreground sm:mt-3 sm:text-2xl lg:text-3xl">
             {value}
           </p>
           {sub && (
@@ -37,9 +37,14 @@ export default function KpiTile({
           )}
         </div>
         <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONE_CLASSES[tone]}`}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${TONE_CLASSES[tone]}`}
         >
-          <Icon size={18} strokeWidth={2.2} />
+          <Icon size={16} strokeWidth={2.2} className="sm:hidden" />
+          <Icon
+            size={18}
+            strokeWidth={2.2}
+            className="hidden sm:inline-block"
+          />
         </span>
       </div>
     </div>
