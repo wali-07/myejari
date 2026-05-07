@@ -105,6 +105,54 @@ export function filterOrdersByRange(
   return orders.filter((o) => o.date >= range.from && o.date <= range.to);
 }
 
+/**
+ * Card-payment gateway fees: 2.6% of the customer-paid amount plus AED 1.
+ * Bank transfers and other methods carry no gateway fee.
+ *
+ * Used when creating new card orders so the admin doesn't need to look the
+ * percentage up. Historical CRM data is preserved as-is — this only applies
+ * to new entries created from the admin tool.
+ */
+export const CARD_GATEWAY_RATE = 0.026;
+export const CARD_GATEWAY_FIXED = 1;
+
+export function calculateGatewayFees(
+  customerAmount: number,
+  paymentMethod: PaymentMethod
+): number {
+  if (paymentMethod !== "Card") return 0;
+  if (!Number.isFinite(customerAmount) || customerAmount <= 0) return 0;
+  return Number(
+    (customerAmount * CARD_GATEWAY_RATE + CARD_GATEWAY_FIXED).toFixed(2)
+  );
+}
+
+/** Monthly trend buckets — used by the dashboard chart. */
+export interface MonthlyBucket {
+  /** `YYYY-MM`. */
+  month: string;
+  /** Customer-paid total for the month. */
+  gmv: number;
+  /** Final-profit total for the month. */
+  profit: number;
+  orders: number;
+}
+
+export function groupOrdersByMonth(orders: Order[]): MonthlyBucket[] {
+  const groups = new Map<string, MonthlyBucket>();
+  for (const o of orders) {
+    const month = o.date.slice(0, 7);
+    const cur = groups.get(month) ?? { month, gmv: 0, profit: 0, orders: 0 };
+    cur.gmv += o.myEjariPrice;
+    cur.profit += o.finalProfit;
+    cur.orders += 1;
+    groups.set(month, cur);
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    a.month.localeCompare(b.month)
+  );
+}
+
 export interface OrderMetrics {
   count: number;
   gmv: number;
