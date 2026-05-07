@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  Building2,
   CheckCircle2,
   FileText,
   Loader2,
@@ -51,7 +50,6 @@ interface UploadedTL {
 }
 
 interface Props {
-  /** Wholesalers ranked from most-used to least-used. */
   wholesalers: string[];
 }
 
@@ -70,7 +68,6 @@ export default function CreateOrderModal({ wholesalers }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [, startTransition] = useTransition();
 
-  // ── Modal lifecycle ─────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -96,7 +93,6 @@ export default function CreateOrderModal({ wholesalers }: Props) {
     setForm((s) => ({ ...s, [key]: value }));
   }
 
-  // ── TL upload ───────────────────────────────────────────
   async function handleFile(file: File) {
     setError(null);
     setUploading(true);
@@ -134,13 +130,12 @@ export default function CreateOrderModal({ wholesalers }: Props) {
     if (file) void handleFile(file);
   }
 
-  // ── Live preview ───────────────────────────────────────
   const myEjariPrice = Number(form.myEjariPrice) || 0;
   const wholesalePrice = Number(form.wholesalePrice) || 0;
   const previewGateway = calculateGatewayFees(myEjariPrice, form.paymentMethod);
   const previewNet = myEjariPrice - previewGateway - wholesalePrice;
+  const canSubmit = !!companyName.trim() && myEjariPrice > 0;
 
-  // ── Submit ─────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -183,173 +178,162 @@ export default function CreateOrderModal({ wholesalers }: Props) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4">
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-foreground/40 backdrop-blur-sm"
             onClick={() => !submitting && setOpen(false)}
           />
 
-          {/* Centered modal */}
-          <div className="relative flex min-h-screen items-start justify-center px-4 py-10 sm:items-center">
-            <div
-              role="dialog"
-              aria-label="Create order"
-              className="relative w-full max-w-[560px] overflow-hidden rounded-3xl border border-border bg-white shadow-2xl"
-            >
-              {/* Header */}
-              <header className="flex items-start justify-between border-b border-border bg-gradient-to-br from-primary-light/60 via-white to-amber/5 px-6 py-5">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                    New order
-                  </p>
-                  <h2 className="mt-0.5 text-xl font-semibold tracking-tight text-foreground">
-                    Create order &amp; invoice
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => !submitting && setOpen(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray transition-colors hover:bg-white hover:text-foreground"
-                  aria-label="Close"
-                >
-                  <X size={16} />
-                </button>
-              </header>
-
-              <form
-                onSubmit={handleSubmit}
-                className="max-h-[70vh] space-y-6 overflow-y-auto p-6"
+          {/* Modal — full-screen on mobile, centered card on desktop */}
+          <div
+            role="dialog"
+            aria-label="Create order"
+            className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[88vh] sm:w-full sm:max-w-[520px] sm:rounded-3xl"
+          >
+            {/* Header */}
+            <header className="flex items-center justify-between border-b border-border px-5 py-3.5 sm:px-6 sm:py-4">
+              <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                New order
+              </h2>
+              <button
+                type="button"
+                onClick={() => !submitting && setOpen(false)}
+                className="-mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray transition-colors hover:bg-gray-light hover:text-foreground"
+                aria-label="Close"
               >
-                {/* ── Trade License upload ── */}
-                <div>
-                  <SectionLabel>Trade license</SectionLabel>
-                  {!uploaded ? (
-                    <div
-                      onDrop={onDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-gray-light/30 px-4 py-8 text-center transition-colors hover:border-primary/40 hover:bg-primary-light/20"
-                    >
-                      {uploading ? (
-                        <>
-                          <Loader2
-                            size={22}
-                            className="animate-spin text-primary"
-                          />
-                          <p className="text-sm font-medium text-foreground">
-                            Reading the trade license…
-                          </p>
-                          <p className="text-[11px] text-gray">
-                            Extracting the company name
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-light text-primary">
-                            <Upload size={18} />
-                          </span>
-                          <p className="text-sm font-medium text-foreground">
-                            Drop the Trade License PDF here
-                          </p>
-                          <p className="text-[11px] text-gray">
-                            or click to browse · max 10 MB
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3 text-[11px] font-semibold text-white transition-colors hover:bg-primary"
-                          >
-                            Choose file
-                          </button>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="application/pdf,.pdf"
-                            onChange={onPick}
-                            className="hidden"
-                          />
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-border bg-white p-4">
-                      {/* File row */}
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success">
-                          <FileText size={16} />
+                <X size={18} />
+              </button>
+            </header>
+
+            {/* Body — single scrollable column */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-1 min-h-0 flex-col"
+            >
+              <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                {/* Trade License — primary action at the top */}
+                {!uploaded ? (
+                  <div
+                    onDrop={onDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    className="group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-gray-light/30 px-4 py-8 text-center transition-all hover:border-primary/50 hover:bg-primary-light/30"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2
+                          size={20}
+                          className="animate-spin text-primary"
+                        />
+                        <p className="text-sm font-medium text-foreground">
+                          Reading the license…
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-sm ring-1 ring-border transition-transform group-hover:scale-105">
+                          <Upload size={18} />
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className="truncate text-sm font-medium text-foreground"
-                            title={uploaded.fileName}
-                          >
-                            {uploaded.fileName}
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            Upload Trade License
                           </p>
-                          <p className="text-[11px] text-gray">
-                            Trade license attached
+                          <p className="mt-0.5 text-[11px] text-gray">
+                            PDF · We&apos;ll auto-extract the company
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploaded(null);
-                            setCompanyName("");
-                            setEditingCompany(false);
-                          }}
-                          className="rounded-lg p-1.5 text-gray transition-colors hover:bg-gray-light hover:text-foreground"
-                          title="Remove"
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={onPick}
+                      className="hidden"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-border bg-white p-3.5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-light text-primary">
+                        <FileText size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate text-sm font-medium text-foreground"
+                          title={uploaded.fileName}
                         >
-                          <X size={14} />
-                        </button>
-                      </div>
-
-                      {/* Detected company name */}
-                      <div className="mt-3 rounded-xl bg-gray-light/50 p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
-                            {uploaded.highConfidence ? (
+                          {uploaded.fileName}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 text-[11px] text-gray">
+                          {uploaded.highConfidence ? (
+                            <>
                               <CheckCircle2
                                 size={11}
                                 className="text-success"
                               />
-                            ) : (
+                              Verified extraction
+                            </>
+                          ) : (
+                            <>
                               <Sparkles size={11} className="text-primary" />
-                            )}
-                            Detected company
-                          </span>
-                          {!editingCompany && companyName && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingCompany(true)}
-                              className="text-[11px] font-medium text-primary hover:underline"
-                            >
-                              Edit
-                            </button>
+                              Best-guess match
+                            </>
                           )}
-                        </div>
-                        {editingCompany || !companyName ? (
-                          <input
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            onBlur={() => companyName && setEditingCompany(false)}
-                            placeholder="Enter the company name"
-                            autoFocus
-                            className="mt-1.5 h-9 w-full rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
-                          />
-                        ) : (
-                          <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
-                            <Building2 size={14} className="text-gray-dark" />
-                            <span>{companyName}</span>
-                          </p>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploaded(null);
+                          setCompanyName("");
+                          setEditingCompany(false);
+                        }}
+                        className="rounded-lg p-1.5 text-gray transition-colors hover:bg-gray-light hover:text-foreground"
+                        title="Remove"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
+                          Company
+                        </label>
+                        {!editingCompany && companyName && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCompany(true)}
+                            className="text-[11px] font-medium text-primary hover:underline"
+                          >
+                            Edit
+                          </button>
                         )}
                       </div>
+                      {editingCompany || !companyName ? (
+                        <input
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          onBlur={() =>
+                            companyName.trim() && setEditingCompany(false)
+                          }
+                          placeholder="Enter the company name"
+                          autoFocus
+                          className="mt-1 h-9 w-full rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                        />
+                      ) : (
+                        <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">
+                          {companyName}
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* ── Customer ── */}
-                <div className="space-y-3">
-                  <SectionLabel>Customer</SectionLabel>
+                {/* Form fields — compact, label-on-top */}
+                <div className="mt-5 space-y-4">
                   <Field label="Mobile">
                     <input
                       type="tel"
@@ -357,15 +341,11 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                       onChange={(e) =>
                         update("contactMobile", e.target.value)
                       }
-                      placeholder="971501234567"
+                      placeholder="+971 50 123 4567"
                       className={inputCls}
                     />
                   </Field>
-                </div>
 
-                {/* ── Service ── */}
-                <div className="space-y-3">
-                  <SectionLabel>Service</SectionLabel>
                   <Field label="Location">
                     <input
                       value={form.serviceLocation}
@@ -376,7 +356,8 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                       className={inputCls}
                     />
                   </Field>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                  <div className="grid grid-cols-2 gap-3">
                     <Field label="Validity">
                       <SegmentedToggle
                         value={form.validity}
@@ -386,7 +367,9 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                     </Field>
                     <Field label="Inspection">
                       <SegmentedToggle
-                        value={form.inspectionIncluded ? "Included" : "Excluded"}
+                        value={
+                          form.inspectionIncluded ? "Included" : "Excluded"
+                        }
                         onChange={(v) =>
                           update("inspectionIncluded", v === "Included")
                         }
@@ -394,33 +377,31 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                       />
                     </Field>
                   </div>
-                </div>
 
-                {/* ── Money ── */}
-                <div className="space-y-3">
-                  <SectionLabel>Money</SectionLabel>
-                  <Field label="Wholesaler (business center)">
+                  <Field label="Wholesaler">
                     <WholesalerSelect
                       value={form.wholesaler}
                       onChange={(v) => update("wholesaler", v)}
                       options={wholesalers}
                     />
                   </Field>
+
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Wholesale (cost)">
-                      <CurrencyInput
-                        value={form.wholesalePrice}
-                        onChange={(v) => update("wholesalePrice", v)}
-                      />
-                    </Field>
-                    <Field label="Customer paid (GMV)" required>
+                    <Field label="Customer paid" required>
                       <CurrencyInput
                         value={form.myEjariPrice}
                         onChange={(v) => update("myEjariPrice", v)}
                         required
                       />
                     </Field>
+                    <Field label="Wholesale cost">
+                      <CurrencyInput
+                        value={form.wholesalePrice}
+                        onChange={(v) => update("wholesalePrice", v)}
+                      />
+                    </Field>
                   </div>
+
                   <Field label="Payment method">
                     <SegmentedToggle
                       value={form.paymentMethod}
@@ -430,76 +411,69 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                   </Field>
                 </div>
 
-                {/* ── Live preview ── */}
-                <div className="rounded-2xl border border-border bg-gradient-to-br from-gray-light/50 via-white to-gray-light/40 p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
-                    Preview
-                  </p>
-                  <dl className="mt-2 space-y-1.5 text-sm">
-                    <Row label="GMV" value={formatAED(myEjariPrice)} />
-                    <Row label="Cost" value={formatAED(wholesalePrice)} />
-                    <Row
-                      label={
-                        form.paymentMethod === "Card"
-                          ? "Gateway fee (2.6% + 1)"
-                          : "Gateway fee"
-                      }
-                      value={formatAED(previewGateway)}
-                    />
-                    <div className="my-1 h-px bg-border" />
-                    <Row
-                      label="Net revenue"
-                      value={formatAED(previewNet)}
-                      bold
-                      danger={previewNet < 0}
-                    />
-                  </dl>
-                </div>
-
                 {error && (
                   <p
                     role="alert"
-                    className="rounded-xl bg-coral/10 px-3 py-2 text-xs font-medium text-coral"
+                    className="mt-4 rounded-xl bg-coral/10 px-3 py-2 text-xs font-medium text-coral"
                   >
                     {error}
                   </p>
                 )}
-              </form>
+              </div>
 
-              {/* Footer */}
-              <footer className="flex items-center justify-end gap-2 border-t border-border bg-gray-light/30 px-6 py-4">
-                <button
-                  type="button"
-                  onClick={() => !submitting && setOpen(false)}
-                  className="inline-flex h-9 items-center rounded-xl px-4 text-xs font-semibold text-foreground/70 transition-colors hover:text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  onClick={handleSubmit}
-                  disabled={
-                    submitting || !companyName.trim() || !form.myEjariPrice
-                  }
-                  className="group inline-flex h-9 items-center gap-1.5 rounded-xl bg-foreground px-4 text-xs font-semibold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      Creating…
-                    </>
-                  ) : (
-                    <>
-                      Create order
-                      <ArrowRight
-                        size={12}
-                        className="transition-transform group-hover:translate-x-0.5"
-                      />
-                    </>
-                  )}
-                </button>
+              {/* Footer — preview + actions, sticks to bottom */}
+              <footer className="border-t border-border bg-gray-light/40 px-5 py-3.5 sm:px-6">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                  <PreviewRow label="GMV" value={formatAED(myEjariPrice)} />
+                  <PreviewRow label="Cost" value={formatAED(wholesalePrice)} />
+                  <PreviewRow
+                    label="Gateway"
+                    value={formatAED(previewGateway)}
+                  />
+                  <div className="col-span-2 flex items-baseline justify-between border-t border-border/70 pt-2 sm:col-span-3">
+                    <span className="text-xs font-semibold text-foreground/70">
+                      Net revenue
+                    </span>
+                    <span
+                      className={`text-base font-semibold tabular-nums ${
+                        previewNet < 0 ? "text-coral" : "text-foreground"
+                      }`}
+                    >
+                      {formatAED(previewNet)}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3.5 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => !submitting && setOpen(false)}
+                    className="inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:h-9 sm:text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || !canSubmit}
+                    className="group inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-foreground px-4 text-sm font-semibold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:flex-initial sm:text-xs"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        Create order
+                        <ArrowRight
+                          size={14}
+                          className="transition-transform group-hover:translate-x-0.5"
+                        />
+                      </>
+                    )}
+                  </button>
+                </div>
               </footer>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -512,14 +486,6 @@ export default function CreateOrderModal({ wholesalers }: Props) {
 const inputCls =
   "h-9 w-full rounded-xl border border-border bg-white px-3 text-sm text-foreground placeholder:text-gray focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15";
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
-      {children}
-    </p>
-  );
-}
-
 function Field({
   label,
   required,
@@ -530,8 +496,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block text-xs font-medium text-foreground/80">
-      <span>
+    <label className="block">
+      <span className="text-xs font-medium text-foreground/80">
         {label}
         {required && <span className="ml-0.5 text-coral">*</span>}
       </span>
@@ -598,31 +564,15 @@ function CurrencyInput({
   );
 }
 
-function Row({
-  label,
-  value,
-  bold,
-  danger,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-  danger?: boolean;
-}) {
+function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between">
-      <dt
-        className={`text-xs ${bold ? "font-semibold" : ""} text-foreground/70`}
-      >
+    <div className="flex items-baseline justify-between gap-1 sm:flex-col sm:items-start">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">
         {label}
-      </dt>
-      <dd
-        className={`tabular-nums ${
-          bold ? "text-base font-semibold" : "text-xs"
-        } ${danger ? "text-coral" : "text-foreground"}`}
-      >
+      </span>
+      <span className="text-sm font-medium tabular-nums text-foreground/85 sm:text-xs">
         {value}
-      </dd>
+      </span>
     </div>
   );
 }

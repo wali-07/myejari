@@ -4,6 +4,7 @@ import type { Order } from "@/lib/admin/orders";
 import { netRevenueOf } from "@/lib/admin/orders";
 import { formatAED, formatDate } from "@/lib/admin/format";
 import PaymentStatusToggle from "@/components/admin/PaymentStatusToggle";
+import DeleteOrderButton from "@/components/admin/DeleteOrderButton";
 
 interface Props {
   orders: Order[];
@@ -32,14 +33,6 @@ export default function OrdersTable({ orders }: Props) {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-      <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Orders</h2>
-          <p className="mt-0.5 text-xs text-gray-dark tabular-nums">
-            {rows.length} {rows.length === 1 ? "order" : "orders"}
-          </p>
-        </div>
-      </header>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -53,7 +46,7 @@ export default function OrdersTable({ orders }: Props) {
               <th className="px-3 py-3 text-right">GMV</th>
               <th className="px-3 py-3 text-right">Cost</th>
               <th className="px-3 py-3 text-right">Net Revenue</th>
-              <th className="px-5 py-3 text-right">PDF</th>
+              <th className="px-5 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -67,12 +60,14 @@ export default function OrdersTable({ orders }: Props) {
                 </td>
               </tr>
             ) : (
-              rows.map((o) => {
+              rows.map((o, idx) => {
                 const badge = REFUND_BADGE[o.refundStatus];
                 const net = netRevenueOf(o);
                 return (
                   <tr
-                    key={o.invoice + o.date + o.company}
+                    // Some legacy CRM rows share an invoice number, so
+                    // composite-key the row with the array index too.
+                    key={`${o.invoice}-${o.date}-${idx}`}
                     className="border-t border-border/60 transition-colors hover:bg-primary-light/20"
                   >
                     <td className="whitespace-nowrap px-5 py-3 text-foreground">
@@ -127,15 +122,20 @@ export default function OrdersTable({ orders }: Props) {
                       {formatAED(net)}
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-right">
-                      <Link
-                        href={`/admin/invoices/${o.invoice}`}
-                        target="_blank"
-                        rel="noopener"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-dark transition-colors hover:bg-gray-light hover:text-foreground"
-                        title={`Open invoice ${o.invoice} (PDF)`}
-                      >
-                        <FileDown size={14} />
-                      </Link>
+                      <div className="inline-flex items-center gap-1">
+                        <Link
+                          href={`/admin/invoices/${o.invoice}`}
+                          target="_blank"
+                          rel="noopener"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-dark transition-colors hover:bg-gray-light hover:text-foreground"
+                          title={`Open invoice ${o.invoice} (PDF)`}
+                        >
+                          <FileDown size={14} />
+                        </Link>
+                        {o.paymentStatus === "unpaid" && (
+                          <DeleteOrderButton invoice={o.invoice} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

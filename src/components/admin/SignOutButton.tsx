@@ -24,10 +24,10 @@ export default function SignOutButton() {
       type="button"
       onClick={handleSignOut}
       disabled={pending}
-      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground/75 transition-colors hover:bg-gray-light hover:text-foreground disabled:opacity-60"
+      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-foreground/80 transition-colors hover:border-foreground/20 hover:text-foreground disabled:opacity-60"
     >
-      <LogOut size={16} strokeWidth={2} />
-      <span>Sign out</span>
+      <LogOut size={14} />
+      <span className="hidden sm:inline">Sign out</span>
     </button>
   );
 }

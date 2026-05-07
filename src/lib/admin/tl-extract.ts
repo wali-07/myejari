@@ -1,11 +1,75 @@
 import "server-only";
 
-import { PDFParse } from "pdf-parse";
+// Trade-license company-name extractor. Uses pdf2json (pure JS, no worker
+// dependency so it works inside Next's bundled server runtime). Walks the
+// extracted text with heuristics tuned for Dubai DET licenses, which lay
+// text out as `VALUE \t LABEL` (English value first, label after the tab).
+// Always returns the raw text alongside so the UI can fall back to a
+// manual edit if the guess is wrong.
+//
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PDFParser = require("pdf2json");
 
-// Trade-license company-name extractor. Runs the PDF through pdf-parse,
-// then walks the text with a small set of heuristics tuned for UAE DET
-// licenses. Always returns the raw text alongside so the UI can fall
-// back to a manual edit if our guess is wrong.
+type Pdf2JsonText = { R: { T: string }[] };
+type Pdf2JsonPage = { Texts: Pdf2JsonText[] };
+type Pdf2JsonData = { Pages: Pdf2JsonPage[] };
+
+interface PDFParserType {
+  on(event: "pdfParser_dataReady", cb: (data: Pdf2JsonData) => void): void;
+  on(event: "pdfParser_dataError", cb: (err: { parserError: Error }) => void): void;
+  parseBuffer(buf: Buffer): void;
+}
+
+function safeDecode(s: string): string {
+  // pdf2json URI-encodes ASCII but leaves Arabic / non-Latin text raw,
+  // which makes `decodeURIComponent` throw on malformed sequences. We
+  // walk byte-by-byte and only decode valid `%XX` triples.
+  return s.replace(/%[0-9A-Fa-f]{2}/g, (match) => {
+    try {
+      return decodeURIComponent(match);
+    } catch {
+      return match;
+    }
+  });
+}
+
+function parsePdfText(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parser = new PDFParser(null, true) as PDFParserType;
+    parser.on("pdfParser_dataReady", (data) => {
+      const lines: string[] = [];
+      for (const page of data.Pages ?? []) {
+        const rowMap = new Map<number, { x: number; t: string }[]>();
+        const pageWithCoords = page as Pdf2JsonPage & {
+          Texts: (Pdf2JsonText & { x: number; y: number })[];
+        };
+        for (const tx of pageWithCoords.Texts ?? []) {
+          const y = Math.round(tx.y * 10) / 10;
+          const fragment = tx.R.map((r) => safeDecode(r.T)).join("");
+          const row = rowMap.get(y) ?? [];
+          row.push({ x: tx.x, t: fragment });
+          rowMap.set(y, row);
+        }
+        const ys = Array.from(rowMap.keys()).sort((a, b) => a - b);
+        for (const y of ys) {
+          const row = rowMap.get(y)!.sort((a, b) => a.x - b.x);
+          // Insert tabs between fragments that have a clear horizontal gap.
+          let line = "";
+          let prevX = -Infinity;
+          for (const seg of row) {
+            if (line && seg.x - prevX > 4) line += "\t";
+            line += seg.t;
+            prevX = seg.x + seg.t.length * 0.5;
+          }
+          lines.push(line);
+        }
+      }
+      resolve(lines.join("\n"));
+    });
+    parser.on("pdfParser_dataError", (err) => reject(err.parserError));
+    parser.parseBuffer(buffer);
+  });
+}
 
 const ENTITY_SUFFIXES = [
   "L.L.C",
@@ -19,18 +83,23 @@ const ENTITY_SUFFIXES = [
   "EST",
   "EST.",
   "CO.",
-  "CO",
   "S.P.C",
   "SPC",
 ];
 
-const LABEL_PATTERNS = [
-  /trade\s*name\s*\(?\s*english?\s*\)?[:\s]+(.+)/i,
-  /trade\s*name[:\s]+(.+)/i,
-  /company\s*name[:\s]+(.+)/i,
-  /name\s*of\s*establishment[:\s]+(.+)/i,
-  /licensee\s*name[:\s]+(.+)/i,
-];
+const LABEL_TOKENS =
+  "trade\\s*name|company\\s*name|business\\s*name|name\\s*of\\s*establishment|licensee\\s*name";
+
+// Pattern A: VALUE <tab/spaces> LABEL  ← the DET TL layout
+const VALUE_THEN_LABEL = new RegExp(
+  `^(.+?)[\\s\\t]+(?:${LABEL_TOKENS})\\s*$`,
+  "i"
+);
+// Pattern B: LABEL : / spaces VALUE   ← classic label-first
+const LABEL_THEN_VALUE = new RegExp(
+  `(?:${LABEL_TOKENS})\\s*\\(?\\s*english?\\s*\\)?[:\\s\\t]+(.+)`,
+  "i"
+);
 
 function cleanLine(line: string): string {
   return line
@@ -41,9 +110,26 @@ function cleanLine(line: string): string {
 }
 
 function looksLikeCompany(line: string): boolean {
-  if (line.length < 4 || line.length > 120) return false;
+  if (line.length < 4 || line.length > 140) return false;
   const upper = line.toUpperCase();
-  return ENTITY_SUFFIXES.some((suffix) => upper.includes(suffix));
+  return ENTITY_SUFFIXES.some((suffix) => {
+    const re = new RegExp(`\\b${suffix.replace(/\./g, "\\.")}\\b`);
+    return re.test(upper);
+  });
+}
+
+function tryExtract(line: string): string | null {
+  const valueLabel = line.match(VALUE_THEN_LABEL);
+  if (valueLabel?.[1]) {
+    const candidate = cleanLine(valueLabel[1]);
+    if (candidate && candidate.length >= 4) return candidate;
+  }
+  const labelValue = line.match(LABEL_THEN_VALUE);
+  if (labelValue?.[1]) {
+    const candidate = cleanLine(labelValue[1]);
+    if (candidate && candidate.length >= 4) return candidate;
+  }
+  return null;
 }
 
 export interface TradeLicenseExtraction {
@@ -58,38 +144,26 @@ export interface TradeLicenseExtraction {
 export async function extractTradeLicense(
   buffer: Buffer
 ): Promise<TradeLicenseExtraction> {
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await parser.getText();
-  const text =
-    typeof result === "string"
-      ? result
-      : ((result as { text?: string })?.text ?? "");
-  const lines = text
-    .split(/\r?\n/)
-    .map(cleanLine)
-    .filter((l) => l.length > 0);
+  const text = await parsePdfText(buffer);
+  const lines = text.split(/\r?\n/).map((l) => l.trimEnd());
+  const cleanedLines = lines.map(cleanLine).filter((l) => l.length > 0);
 
-  // 1. Look for explicit labels.
+  // 1. Walk each line with both label/value patterns.
   for (const line of lines) {
-    for (const pattern of LABEL_PATTERNS) {
-      const match = line.match(pattern);
-      if (match && match[1]) {
-        const candidate = cleanLine(match[1]);
-        if (candidate) {
-          return { companyName: candidate, rawText: text, highConfidence: true };
-        }
-      }
+    const candidate = tryExtract(line);
+    if (candidate) {
+      return { companyName: candidate, rawText: text, highConfidence: true };
     }
   }
 
-  // 2. Look for a clean line that ends with a known entity suffix.
-  for (const line of lines) {
+  // 2. Fall back: any line ending in a known entity suffix.
+  for (const line of cleanedLines) {
     if (looksLikeCompany(line)) {
       return { companyName: line, rawText: text, highConfidence: false };
     }
   }
 
-  // 3. Fall back: first non-trivial line.
-  const fallback = lines.find((l) => l.length >= 6) ?? "";
+  // 3. Final fallback — first sufficiently long line.
+  const fallback = cleanedLines.find((l) => l.length >= 6) ?? "";
   return { companyName: fallback, rawText: text, highConfidence: false };
 }

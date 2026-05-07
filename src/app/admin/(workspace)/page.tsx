@@ -79,26 +79,9 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-7">
-      {/* Page header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray">
-            Workspace
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground sm:text-[34px]">
-            Orders
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <DateRangePicker
-            active={activeRange}
-            basePath="/admin"
-            customFrom={customRange?.from}
-            customTo={customRange?.to}
-            preserveParams={preservedForDate}
-          />
-          <CreateOrderModal wholesalers={wholesalers} />
-        </div>
+      {/* Page header — Create order action only */}
+      <div className="flex items-center justify-end">
+        <CreateOrderModal wholesalers={wholesalers} />
       </div>
 
       {/* KPI tiles — title + value only, paid orders only */}
@@ -129,8 +112,19 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* Filters row (search only) */}
-      <OrdersFilters query={query} />
+      {/* Filters row — search + date picker */}
+      <OrdersFilters
+        query={query}
+        rightSlot={
+          <DateRangePicker
+            active={activeRange}
+            basePath="/admin"
+            customFrom={customRange?.from}
+            customTo={customRange?.to}
+            preserveParams={preservedForDate}
+          />
+        }
+      />
 
       {/* Orders table — shows ALL filtered orders (paid + unpaid) */}
       <OrdersTable orders={filtered} />

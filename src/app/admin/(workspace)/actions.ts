@@ -3,12 +3,16 @@
 import { revalidatePath } from "next/cache";
 import {
   calculateGatewayFees,
-  nextInvoiceNumber,
   type Order,
   type PaymentMethod,
   type PaymentStatus,
 } from "@/lib/admin/orders";
-import { readOrders, writeOrders } from "@/lib/admin/orders-store";
+import {
+  consumeNextInvoiceNumber,
+  deleteUnpaidOrder,
+  readOrders,
+  writeOrders,
+} from "@/lib/admin/orders-store";
 
 const VALID_PAYMENT_METHODS: PaymentMethod[] = ["Bank Transfer", "Card"];
 const VALID_VALIDITIES = ["1 year", "1 month"] as const;
@@ -54,8 +58,10 @@ export async function createOrder(
   if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
     return { ok: false, error: "Wholesale price must be ≥ 0" };
 
+  // Reserve the next invoice number atomically (counter persists across
+  // deletions so numbers are strictly monotonic).
+  const invoice = await consumeNextInvoiceNumber();
   const orders = await readOrders();
-  const invoice = nextInvoiceNumber(orders);
 
   const gatewayFees = calculateGatewayFees(
     input.myEjariPrice,
@@ -91,6 +97,19 @@ export async function createOrder(
   await writeOrders([...orders, order]);
   revalidatePath("/admin");
   return { ok: true, invoice };
+}
+
+/**
+ * Delete an order. Only unpaid orders can be deleted — paid orders are
+ * locked because they represent collected revenue. The invoice number
+ * is NOT reissued; the counter keeps marching forward.
+ */
+export async function deleteOrder(
+  invoice: string
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await deleteUnpaidOrder(invoice);
+  if (result.ok) revalidatePath("/admin");
+  return result;
 }
 
 /** Toggle an order's payment status. Used by the Mark Paid / Mark Unpaid pill. */
