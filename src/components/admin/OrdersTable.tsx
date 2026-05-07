@@ -42,6 +42,7 @@ export default function OrdersTable({ orders }: Props) {
               <th className="px-3 py-3">Date</th>
               <th className="px-3 py-3">Company</th>
               <th className="px-3 py-3">Mobile</th>
+              <th className="px-3 py-3">Wholesaler</th>
               <th className="px-3 py-3">Payment</th>
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3 text-right">GMV</th>
@@ -54,7 +55,7 @@ export default function OrdersTable({ orders }: Props) {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   className="px-6 py-10 text-center text-sm text-gray"
                 >
                   No orders match the current filters.
@@ -93,6 +94,12 @@ export default function OrdersTable({ orders }: Props) {
                       title={o.contactMobile}
                     >
                       {o.contactMobile || "—"}
+                    </td>
+                    <td
+                      className="max-w-[180px] truncate whitespace-nowrap px-3 py-3 text-foreground"
+                      title={o.wholesaler}
+                    >
+                      {o.wholesaler || "—"}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
                       <span
