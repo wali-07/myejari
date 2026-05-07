@@ -25,11 +25,13 @@ interface Props {
   >;
 }
 
-// Storage paths look like `data/admin-uploads/orders/INV0123/foo.pdf`.
-// Files are served by the `/admin/uploads/[...path]` route — strip the
-// `data/admin-uploads/` prefix to get the URL segments.
-function storagePathToUrl(storagePath: string): string {
-  const cleaned = storagePath.replace(/\\/g, "/");
+// In prod the order ref is already an absolute Vercel Blob URL; just
+// hand it back. In dev it's a repo-relative path under
+// `data/admin-uploads/` and the `/admin/uploads/[...path]` route serves
+// it after stripping the prefix.
+function storagePathToUrl(ref: string): string {
+  if (/^https?:\/\//.test(ref)) return ref;
+  const cleaned = ref.replace(/\\/g, "/");
   const stripped = cleaned.replace(/^data\/admin-uploads\//, "");
   return `/admin/uploads/${stripped}`;
 }

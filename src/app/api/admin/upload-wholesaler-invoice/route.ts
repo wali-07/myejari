@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { readOrders, writeOrders } from "@/lib/admin/orders-store";
+import {
+  deleteUploadsByPrefix,
+  putUpload,
+} from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
 
-const UPLOAD_DIR = path.join(process.cwd(), "data", "admin-uploads", "orders");
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — phone screenshots can be big
 
 const ALLOWED_EXT = [
@@ -25,8 +27,8 @@ const ALLOWED_EXT = [
  *   `invoice`            — the order invoice number (e.g. "INV0123")
  *   `wholesalerInvoice`  — the file from the wholesaler (PDF or image)
  *
- * Saves it to `data/admin-uploads/orders/<INVxxxx>/wholesaler-invoice.<ext>`
- * and writes the path back to the order's `wholesalerInvoicePath`.
+ * Saves through the storage abstraction (fs in dev, Blob in prod) and
+ * writes the resulting ref back to the order's `wholesalerInvoicePath`.
  */
 export async function POST(request: Request) {
   let form: FormData;
@@ -76,27 +78,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Write to data/admin-uploads/orders/<invoice>/wholesaler-invoice.<ext>.
-  const orderDir = path.join(UPLOAD_DIR, invoice);
-  await fs.mkdir(orderDir, { recursive: true });
+  // Replace any existing wholesaler invoice for this order.
+  await deleteUploadsByPrefix(`orders/${invoice}/wholesaler-invoice`);
 
-  // Clean up any existing wholesaler invoice (different ext) so we have one
-  // canonical file per order.
-  for (const old of ALLOWED_EXT) {
-    const existing = path.join(orderDir, `wholesaler-invoice${old}`);
-    if (existing !== path.join(orderDir, `wholesaler-invoice${ext}`)) {
-      await fs.unlink(existing).catch(() => {});
-    }
-  }
-
-  const fullPath = path.join(orderDir, `wholesaler-invoice${ext}`);
   const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(fullPath, buffer);
+  const key = `orders/${invoice}/wholesaler-invoice${ext}`;
+  const stored = await putUpload(
+    key,
+    buffer,
+    file.type || "application/octet-stream"
+  );
 
-  // Persist the new path on the order.
-  const relPath = path.relative(process.cwd(), fullPath).replace(/\\/g, "/");
-  orders[idx] = { ...orders[idx], wholesalerInvoicePath: relPath };
+  orders[idx] = { ...orders[idx], wholesalerInvoicePath: stored.ref };
   await writeOrders(orders);
 
-  return NextResponse.json({ ok: true, path: relPath });
+  return NextResponse.json({ ok: true, path: stored.ref });
 }

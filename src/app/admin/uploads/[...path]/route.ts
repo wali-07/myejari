@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
-import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { openLocalReadStream } from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
 
-// Files under data/admin-uploads/ are served by this gated route.
-// Path traversal is impossible because we resolve the requested path
-// and reject anything that escapes the uploads directory.
+// Auth-gated file server for the local-fs backend. In dev we stream the
+// file from disk; in prod the order records hold full Vercel Blob URLs
+// instead of relative paths and the modal links directly to those URLs,
+// so this route is essentially dev-only.
 const ROOT = path.resolve(process.cwd(), "data", "admin-uploads");
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -49,9 +50,7 @@ export async function GET(_request: Request, { params }: Params) {
   const ext = path.extname(requested).toLowerCase();
   const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
 
-  const nodeStream = createReadStream(requested);
-  // Bridge Node's Readable to a Web ReadableStream so it works as a
-  // Response body in the App Router.
+  const nodeStream = openLocalReadStream(requested);
   const webStream = Readable.toWeb(nodeStream) as unknown as ReadableStream;
 
   return new NextResponse(webStream, {

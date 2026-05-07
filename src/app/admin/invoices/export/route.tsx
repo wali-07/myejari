@@ -1,26 +1,18 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import archiver from "archiver";
-import { existsSync, createReadStream } from "node:fs";
 import path from "node:path";
 import { PassThrough, Readable } from "node:stream";
 import { readOrders } from "@/lib/admin/orders-store";
 import { InvoicePdf } from "@/lib/admin/invoice-pdf";
 import { sortOrdersByDate } from "@/lib/admin/orders";
+import { fetchUploadBytes, isBlobRef } from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
 
 /**
- * GET /admin/invoices/export
- *
- * Streams a ZIP archive to the browser containing every order's
- * documents, organised one folder per invoice:
- *
- *   INV0123 - Company Name/
- *     customer-invoice.pdf       (auto-generated from order data)
- *     wholesaler-invoice.pdf     (uploaded receipt — if present)
- *     trade-license.pdf          (uploaded TL — if present)
- *
- * Streaming so we don't have to fit 100+ PDFs in memory.
+ * GET /admin/invoices/export — streams a ZIP containing every order's
+ * documents, organised one folder per invoice. Backend-agnostic: pulls
+ * uploaded files via the storage layer (fs in dev, Blob fetch in prod).
  */
 
 function sanitize(name: string): string {
@@ -39,6 +31,18 @@ function timestamp(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
+function extFromRef(ref: string): string {
+  if (isBlobRef(ref)) {
+    try {
+      const url = new URL(ref);
+      return path.extname(url.pathname) || "";
+    } catch {
+      return "";
+    }
+  }
+  return path.extname(ref) || "";
+}
+
 export async function GET() {
   const orders = sortOrdersByDate(await readOrders());
 
@@ -46,35 +50,37 @@ export async function GET() {
   const passthrough = new PassThrough();
   archive.pipe(passthrough);
 
-  // Build the archive in the background; the body streams to the client
-  // as bytes are added.
   (async () => {
     try {
       for (const order of orders) {
         const folder = `${order.invoice} - ${sanitize(order.company)}`;
 
-        // 1. Auto-generated customer invoice.
+        // 1. Customer invoice — auto-generated.
         const customerPdf = await renderToBuffer(<InvoicePdf order={order} />);
         archive.append(customerPdf, {
           name: `${folder}/customer-invoice.pdf`,
         });
 
-        // 2. Wholesaler-issued invoice / receipt (if uploaded).
+        // 2. Wholesaler-issued invoice (if uploaded).
         if (order.wholesalerInvoicePath) {
-          const fp = path.resolve(process.cwd(), order.wholesalerInvoicePath);
-          if (existsSync(fp)) {
-            archive.append(createReadStream(fp), {
-              name: `${folder}/wholesaler-invoice${path.extname(fp)}`,
+          const buf = await fetchUploadBytes(order.wholesalerInvoicePath);
+          if (buf) {
+            archive.append(buf, {
+              name: `${folder}/wholesaler-invoice${extFromRef(
+                order.wholesalerInvoicePath
+              )}`,
             });
           }
         }
 
         // 3. Trade License (if uploaded).
         if (order.tradeLicensePath) {
-          const fp = path.resolve(process.cwd(), order.tradeLicensePath);
-          if (existsSync(fp)) {
-            archive.append(createReadStream(fp), {
-              name: `${folder}/trade-license${path.extname(fp)}`,
+          const buf = await fetchUploadBytes(order.tradeLicensePath);
+          if (buf) {
+            archive.append(buf, {
+              name: `${folder}/trade-license${extFromRef(
+                order.tradeLicensePath
+              )}`,
             });
           }
         }
