@@ -23,6 +23,7 @@ interface CreateOrderInput {
   myEjariPrice: number;
   wholesalePrice: number;
   wholesaler: string;
+  tradeLicensePath?: string;
 }
 
 function todayIso(): string {
@@ -84,6 +85,7 @@ export async function createOrder(
     serviceLocation: input.serviceLocation.trim() || undefined,
     validity: input.validity,
     inspectionIncluded: input.inspectionIncluded,
+    tradeLicensePath: input.tradeLicensePath || undefined,
   };
 
   await writeOrders([...orders, order]);

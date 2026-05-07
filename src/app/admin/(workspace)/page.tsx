@@ -3,21 +3,19 @@ import KpiTile from "@/components/admin/KpiTile";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import OrdersFilters from "@/components/admin/OrdersFilters";
 import OrdersTable from "@/components/admin/OrdersTable";
-import CreateOrderDrawer from "@/components/admin/CreateOrderDrawer";
+import CreateOrderModal from "@/components/admin/CreateOrderModal";
 import {
   computeMetrics,
   filterOrdersByRange,
   paidOnly,
+  rankedWholesalers,
   resolveCustomRange,
   resolveRange,
   type DateRangeKey,
-  type PaymentMethod,
 } from "@/lib/admin/orders";
 import { getAllOrders } from "@/lib/admin/orders-store";
 import { formatAED, formatPct } from "@/lib/admin/format";
 
-// /admin reads from the on-disk JSON and writes via server actions, so we
-// must opt out of static rendering — the data changes between requests.
 export const dynamic = "force-dynamic";
 
 interface Props {
@@ -25,7 +23,6 @@ interface Props {
     range?: string;
     from?: string;
     to?: string;
-    payment?: string;
     q?: string;
   }>;
 }
@@ -36,11 +33,6 @@ const VALID_RANGES: DateRangeKey[] = [
   "last-month",
   "last-90",
   "this-year",
-];
-const VALID_PAYMENTS: ("all" | PaymentMethod)[] = [
-  "all",
-  "Bank Transfer",
-  "Card",
 ];
 
 export default async function AdminOrdersPage({ searchParams }: Props) {
@@ -55,20 +47,11 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
       ? presetKey
       : "all";
   const range = customRange ?? resolveRange(presetKey);
-
-  const activePayment: "all" | PaymentMethod = VALID_PAYMENTS.includes(
-    (sp.payment ?? "all") as "all" | PaymentMethod
-  )
-    ? ((sp.payment ?? "all") as "all" | PaymentMethod)
-    : "all";
   const query = (sp.q ?? "").trim();
 
-  // Apply filters in order: date → payment → search.
+  // Apply filters in order: date → search.
   const all = await getAllOrders();
   let filtered = filterOrdersByRange(all, range);
-  if (activePayment !== "all") {
-    filtered = filtered.filter((o) => o.paymentMethod === activePayment);
-  }
   if (query) {
     const needle = query.toLowerCase();
     const queryDigits = query.replace(/\D/g, "");
@@ -87,21 +70,12 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
   // promised revenue, not realised revenue.
   const metrics = computeMetrics(paidOnly(filtered));
 
-  // Preserve params across each filter so users can compose them.
-  const preservedForDate = {
-    payment: activePayment !== "all" ? activePayment : undefined,
-    q: query || undefined,
-  };
-  const preservedForPayment = {
-    range: customRange
-      ? undefined
-      : activeRange !== "all"
-        ? activeRange
-        : undefined,
-    from: customRange?.from,
-    to: customRange?.to,
-    q: query || undefined,
-  };
+  // Wholesalers ranked by usage across the whole dataset (not the filtered
+  // window) — most-used → least-used. Used by the Create Order modal.
+  const wholesalers = rankedWholesalers(all);
+
+  // Preserve search across date filter changes.
+  const preservedForDate = { q: query || undefined };
 
   return (
     <div className="space-y-7">
@@ -123,7 +97,7 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
             customTo={customRange?.to}
             preserveParams={preservedForDate}
           />
-          <CreateOrderDrawer />
+          <CreateOrderModal wholesalers={wholesalers} />
         </div>
       </div>
 
@@ -155,12 +129,8 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* Filters row (payment + search) */}
-      <OrdersFilters
-        payment={activePayment}
-        query={query}
-        preserveParams={preservedForPayment}
-      />
+      {/* Filters row (search only) */}
+      <OrdersFilters query={query} />
 
       {/* Orders table — shows ALL filtered orders (paid + unpaid) */}
       <OrdersTable orders={filtered} />

@@ -38,6 +38,21 @@ export interface Order {
   validity?: "1 year" | "1 month";
   /** Whether the package includes inspection. Default true. */
   inspectionIncluded?: boolean;
+  /** Repo-relative path to the uploaded Trade License PDF (if any). */
+  tradeLicensePath?: string;
+}
+
+/** Wholesaler usage rollup — used to populate the dropdown in Create Order. */
+export function rankedWholesalers(orders: Order[]): string[] {
+  const counts = new Map<string, number>();
+  for (const o of orders) {
+    const name = o.wholesaler.trim();
+    if (!name) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
 }
 
 /** Compute the next invoice number based on the highest existing INVxxxx. */
