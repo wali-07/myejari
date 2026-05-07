@@ -115,12 +115,6 @@ export default function OrderPaymentStatus({ order }: Props) {
                 <Row label="Method" value={order.paymentMethod} />
               </dl>
 
-              <p className="mt-4 text-[11px] leading-relaxed text-gray-dark">
-                Once marked paid, the status is locked. The order&apos;s GMV,
-                margin, and net revenue will start counting in the summary
-                cards.
-              </p>
-
               {error && (
                 <p
                   role="alert"

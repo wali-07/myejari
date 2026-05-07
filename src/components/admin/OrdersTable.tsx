@@ -4,6 +4,7 @@ import type { Order } from "@/lib/admin/orders";
 import { netRevenueOf } from "@/lib/admin/orders";
 import { formatAED, formatDate } from "@/lib/admin/format";
 import OrderPaymentStatus from "@/components/admin/OrderPaymentStatus";
+import OrderDocsModal from "@/components/admin/OrderDocsModal";
 import DeleteOrderButton from "@/components/admin/DeleteOrderButton";
 
 interface Props {
@@ -119,7 +120,7 @@ export default function OrdersTable({ orders }: Props) {
                       {formatAED(net)}
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-0.5">
                         <Link
                           href={`/admin/invoices/${o.invoice}`}
                           target="_blank"
@@ -129,6 +130,7 @@ export default function OrdersTable({ orders }: Props) {
                         >
                           <FileDown size={14} />
                         </Link>
+                        <OrderDocsModal order={o} />
                         {o.paymentStatus === "unpaid" && (
                           <DeleteOrderButton invoice={o.invoice} />
                         )}

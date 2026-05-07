@@ -4,6 +4,7 @@ import DateRangePicker from "@/components/admin/DateRangePicker";
 import OrdersFilters from "@/components/admin/OrdersFilters";
 import OrdersTable from "@/components/admin/OrdersTable";
 import CreateOrderModal from "@/components/admin/CreateOrderModal";
+import ExportAllButton from "@/components/admin/ExportAllButton";
 import {
   computeMetrics,
   filterOrdersByRange,
@@ -79,7 +80,7 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-7">
-      {/* Top action row — date filter on the left, Create order on the right */}
+      {/* Top action row — date filter on the left, Export + Create on the right */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <DateRangePicker
           active={activeRange}
@@ -88,7 +89,10 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
           customTo={customRange?.to}
           preserveParams={preservedForDate}
         />
-        <CreateOrderModal wholesalers={wholesalers} />
+        <div className="flex items-center gap-2">
+          <ExportAllButton />
+          <CreateOrderModal wholesalers={wholesalers} />
+        </div>
       </div>
 
       {/* KPI tiles — title + value only, paid orders only */}

@@ -40,6 +40,8 @@ export interface Order {
   inspectionIncluded?: boolean;
   /** Repo-relative path to the uploaded Trade License PDF (if any). */
   tradeLicensePath?: string;
+  /** Repo-relative path to the wholesaler-issued invoice/receipt for this order. */
+  wholesalerInvoicePath?: string;
 }
 
 /** Wholesaler usage rollup — used to populate the dropdown in Create Order. */
