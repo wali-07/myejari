@@ -14,21 +14,18 @@ export default function CTABanner() {
     <section ref={ref} className="px-6 pb-20">
       <div className="mx-auto max-w-6xl">
         <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-primary via-primary-dark to-foreground px-8 py-16 sm:px-16 sm:py-20">
-          {/* Animated mesh */}
-          <motion.div
-            className="absolute -top-32 -left-24 h-80 w-80 rounded-full bg-amber/40 blur-3xl"
-            animate={{ scale: [1, 1.15, 1], x: [0, 20, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          {/* Static mesh — same rationale as Hero (mobile perf). */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-amber/40 blur-3xl"
           />
-          <motion.div
-            className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-coral/40 blur-3xl"
-            animate={{ scale: [1, 1.1, 1], x: [0, -20, 0] }}
-            transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-coral/40 blur-3xl"
           />
-          <motion.div
-            className="absolute top-1/2 left-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"
           />
 
           <div className="relative z-10 grid grid-cols-1 items-center gap-10 lg:grid-cols-[1.5fr_1fr]">

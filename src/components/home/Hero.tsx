@@ -11,21 +11,20 @@ export default function Hero() {
       {/* Layered backdrop */}
       <div className="absolute inset-0 bg-grid opacity-60" />
 
-      {/* Animated mesh blobs */}
-      <motion.div
-        className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-primary/25 blur-[120px]"
-        animate={{ scale: [1, 1.08, 1], x: [0, 20, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+      {/* Static mesh blobs — animating these forever was the dominant
+          mobile perf cost (large blurs + GPU repaint loops). Static gives
+          the same visual feel without the cost. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-primary/25 blur-[120px]"
       />
-      <motion.div
-        className="absolute top-1/3 -right-44 h-[560px] w-[560px] rounded-full bg-amber/25 blur-[120px]"
-        animate={{ scale: [1, 1.1, 1], x: [0, -25, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/3 -right-44 h-[560px] w-[560px] rounded-full bg-amber/25 blur-[120px]"
       />
-      <motion.div
-        className="absolute -bottom-44 left-1/4 h-[500px] w-[500px] rounded-full bg-coral/30 blur-[120px]"
-        animate={{ scale: [1, 1.05, 1], y: [0, -18, 0] }}
-        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-44 left-1/4 h-[500px] w-[500px] rounded-full bg-coral/30 blur-[120px]"
       />
 
       {/* Floating glass card peeks */}

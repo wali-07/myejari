@@ -43,16 +43,14 @@ export default function WhyMyEjari() {
       ref={ref}
       className="relative overflow-hidden bg-aurora-dark px-6 py-20 text-white sm:py-24"
     >
-      {/* Animated mesh blobs */}
-      <motion.div
-        className="absolute -top-40 -left-32 h-[480px] w-[480px] rounded-full bg-primary/40 blur-[120px]"
-        animate={{ scale: [1, 1.08, 1] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+      {/* Static mesh blobs — see Hero.tsx for the perf rationale. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-40 -left-32 h-[480px] w-[480px] rounded-full bg-primary/40 blur-[120px]"
       />
-      <motion.div
-        className="absolute -bottom-40 -right-32 h-[520px] w-[520px] rounded-full bg-amber/30 blur-[120px]"
-        animate={{ scale: [1, 1.1, 1] }}
-        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-40 -right-32 h-[520px] w-[520px] rounded-full bg-amber/30 blur-[120px]"
       />
 
       <div className="relative z-10 mx-auto grid max-w-6xl grid-cols-1 items-start gap-14 lg:grid-cols-[1fr_1.15fr]">

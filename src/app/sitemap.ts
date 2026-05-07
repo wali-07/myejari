@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/posts";
+import { SITE } from "@/lib/seo";
 
-const SITE_URL = "https://myejari.ae";
+const SITE_URL = SITE.url;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
