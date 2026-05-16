@@ -9,6 +9,7 @@ import { put, del, get } from "@vercel/blob";
 // the first-run seed for the Blob store and as a read-only fallback
 // when the local fs file isn't reachable.
 import bundledOrdersData from "@/data/orders.json";
+import { calculateGatewayFees, type Order } from "@/lib/admin/orders";
 
 /**
  * Storage abstraction — dev uses the local filesystem, prod uses Vercel
@@ -75,10 +76,16 @@ let lastWrittenOrders: unknown[] | null = null;
 let lastWriteAt = 0;
 /** Once-per-process flag so a legacy public doc is migrated to private once. */
 let migratedThisProcess = false;
+/** Per-process guard so the one-time Card-fee recalc is attempted once. */
+let cardFeeMigrationChecked = false;
+/** Bump the version suffix to re-run the recalc as a fresh migration. */
+const CARD_FEE_MIGRATION_FLAG =
+  "admin/migrations/recalc-card-fees-v1.json";
 
 export async function readOrdersJson(): Promise<unknown[]> {
   if (STORAGE_BACKEND === "blob") {
-    return readOrdersJsonFromBlob();
+    const orders = await readOrdersJsonFromBlob();
+    return ensureCardFeesMigrated(orders);
   }
   // fs backend: try the on-disk file (so dev writes are visible). If it
   // isn't reachable — typically on Vercel without a Blob store — fall
@@ -296,6 +303,94 @@ export async function backupOrdersJson(
     return backupPath;
   } catch {
     return null;
+  }
+}
+
+function recalcCardFees(orders: Order[]): {
+  next: Order[];
+  changed: number;
+} {
+  let changed = 0;
+  const next = orders.map((o) => {
+    if (o.paymentMethod !== "Card") return o;
+    const margin = o.myEjariPrice - o.wholesalePrice;
+    const gatewayFees = calculateGatewayFees(o.myEjariPrice, "Card");
+    const finalProfit = margin - gatewayFees;
+    if (
+      o.gatewayFees !== gatewayFees ||
+      o.finalProfit !== finalProfit ||
+      o.margin !== margin
+    ) {
+      changed++;
+    }
+    return { ...o, margin, gatewayFees, finalProfit };
+  });
+  return { next, changed };
+}
+
+async function writeMigrationFlag(
+  changed: number,
+  backup: string | null
+): Promise<void> {
+  try {
+    await put(
+      CARD_FEE_MIGRATION_FLAG,
+      JSON.stringify(
+        { appliedAt: new Date().toISOString(), changed, backup },
+        null,
+        2
+      ),
+      {
+        access: "private",
+        addRandomSuffix: false,
+        contentType: "application/json",
+        allowOverwrite: false,
+        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+      }
+    );
+  } catch {
+    // A racing instance already wrote it — fine, it's a one-way marker.
+  }
+}
+
+/**
+ * One-time, idempotent auto-migration. On the first orders read after
+ * deploy, recompute every Card order's Ziina fee with the corrected
+ * (amount·2.6% + AED 1) × 1.05 formula. Guarded by a private Blob flag
+ * so it runs once globally, and the document is backed up before any
+ * write. Entirely best-effort: any failure returns the original orders
+ * untouched (a read can never break), and because the op is idempotent
+ * and flag-gated, a later cold instance simply retries until it sticks.
+ */
+async function ensureCardFeesMigrated(
+  orders: unknown[]
+): Promise<unknown[]> {
+  if (STORAGE_BACKEND !== "blob") return orders;
+  if (cardFeeMigrationChecked) return orders;
+  cardFeeMigrationChecked = true;
+  try {
+    const flag = await get(CARD_FEE_MIGRATION_FLAG, {
+      access: "private",
+      useCache: false,
+    });
+    if (flag && flag.statusCode === 200) return orders;
+
+    const { next, changed } = recalcCardFees(orders as Order[]);
+
+    if (changed > 0) {
+      const backup = await backupOrdersJson(orders);
+      // Never rewrite financial data without a successful backup.
+      if (!backup) return orders;
+      await writeOrdersJsonToBlob(next);
+      await writeMigrationFlag(changed, backup);
+      return next;
+    }
+
+    // Nothing to change — set the flag so we stop checking every cold start.
+    await writeMigrationFlag(0, null);
+    return next;
+  } catch {
+    return orders;
   }
 }
 
