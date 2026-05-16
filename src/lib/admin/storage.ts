@@ -286,14 +286,29 @@ export async function backupOrdersJson(
   const body = JSON.stringify(orders, null, 2);
   try {
     if (STORAGE_BACKEND === "blob") {
-      const result = await put(`admin/orders.backup-${stamp}.json`, body, {
-        access: "private",
-        addRandomSuffix: false,
-        contentType: "application/json",
-        allowOverwrite: false,
-        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
-      });
-      return result.url;
+      const key = `admin/orders.backup-${stamp}.json`;
+      try {
+        const result = await put(key, body, {
+          access: "private",
+          addRandomSuffix: false,
+          contentType: "application/json",
+          allowOverwrite: false,
+          cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+        });
+        return result.url;
+      } catch {
+        // Private blobs may be unavailable on this store. Fall back to a
+        // public blob with a random suffix so the URL is unguessable —
+        // a recoverable backup beats no backup.
+        const result = await put(key, body, {
+          access: "public",
+          addRandomSuffix: true,
+          contentType: "application/json",
+          allowOverwrite: false,
+          cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+        });
+        return result.url;
+      }
     }
     const backupPath = ORDERS_FS_PATH.replace(
       /orders\.json$/,
@@ -332,24 +347,33 @@ async function writeMigrationFlag(
   changed: number,
   backup: string | null
 ): Promise<void> {
+  const body = JSON.stringify(
+    { appliedAt: new Date().toISOString(), changed, backup },
+    null,
+    2
+  );
+  const base = {
+    addRandomSuffix: false as const,
+    contentType: "application/json",
+    allowOverwrite: false as const,
+    cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+  };
   try {
-    await put(
-      CARD_FEE_MIGRATION_FLAG,
-      JSON.stringify(
-        { appliedAt: new Date().toISOString(), changed, backup },
-        null,
-        2
-      ),
-      {
-        access: "private",
-        addRandomSuffix: false,
-        contentType: "application/json",
-        allowOverwrite: false,
-        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
-      }
-    );
+    await put(CARD_FEE_MIGRATION_FLAG, body, {
+      ...base,
+      access: "private",
+    });
   } catch {
-    // A racing instance already wrote it — fine, it's a one-way marker.
+    // Private unavailable, or a racing instance already wrote it. The
+    // marker carries no sensitive data, so a public fallback is fine.
+    try {
+      await put(CARD_FEE_MIGRATION_FLAG, body, {
+        ...base,
+        access: "public",
+      });
+    } catch {
+      // Already exists (race) — fine, it's a one-way marker.
+    }
   }
 }
 
@@ -368,13 +392,21 @@ async function ensureCardFeesMigrated(
   if (STORAGE_BACKEND !== "blob") return orders;
   if (cardFeeMigrationChecked) return orders;
   cardFeeMigrationChecked = true;
+
+  // Flag check in its own guard: a flaky/throwing flag read must NOT
+  // abort the migration. Unknown → treat as "not applied" and proceed —
+  // the op is idempotent and backup-gated, so re-running is safe.
   try {
     const flag = await get(CARD_FEE_MIGRATION_FLAG, {
       access: "private",
       useCache: false,
     });
     if (flag && flag.statusCode === 200) return orders;
+  } catch {
+    /* unknown flag state — fall through and (idempotently) re-run */
+  }
 
+  try {
     const { next, changed } = recalcCardFees(orders as Order[]);
 
     if (changed > 0) {
