@@ -119,11 +119,13 @@ export default function OrderRow({ order: o }: Props) {
         </td>
       </tr>
 
-      <OrderDetailsModal
-        order={o}
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-      />
+      {detailsOpen && (
+        <OrderDetailsModal
+          order={o}
+          open
+          onClose={() => setDetailsOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -107,15 +107,22 @@ export async function writeOrdersJson(orders: unknown[]): Promise<void> {
 }
 
 async function readOrdersJsonFromBlob(): Promise<unknown[]> {
-  const haveFreshLocal =
-    !!lastWrittenOrders &&
-    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS;
+  // 1. Read-after-write: if THIS instance wrote within the trust window,
+  //    its in-memory copy IS the latest truth. Return it before touching
+  //    the blob at all. This is what guarantees "mark paid / create /
+  //    upload → refresh" reflects the change on the warm instance the
+  //    admin is using, regardless of blob read latency or migration state.
+  if (
+    lastWrittenOrders &&
+    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS
+  ) {
+    return lastWrittenOrders;
+  }
 
-  // 1. Strongly-consistent read straight from origin storage. `useCache:
+  // 2. Strongly-consistent read straight from origin storage. `useCache:
   //    false` is only honoured for PRIVATE blobs — which is why writes go
   //    out as private. This reflects every write immediately, on every
-  //    serverless instance: the real fix for "I created an order and
-  //    still don't see it".
+  //    serverless instance.
   try {
     const res = await get(ORDERS_BLOB_KEY, {
       access: "private",
@@ -134,9 +141,6 @@ async function readOrdersJsonFromBlob(): Promise<unknown[]> {
   } catch {
     // Private read unavailable/transient — fall through.
   }
-
-  // 2. If this instance wrote recently, trust its own copy.
-  if (haveFreshLocal) return lastWrittenOrders as unknown[];
 
   // 3. Legacy/public fallback: read the old public blob, then migrate it
   //    to private once so every subsequent read is strongly consistent.
@@ -259,6 +263,40 @@ async function writeOrdersJsonToBlob(orders: unknown[]): Promise<void> {
   // window — resilience if a strongly-consistent read transiently fails.
   lastWrittenOrders = orders;
   lastWriteAt = Date.now();
+}
+
+/**
+ * Write a timestamped, immutable backup of the orders document before a
+ * destructive maintenance operation (e.g. the one-time Card-fee recalc).
+ * Private + no-overwrite so a backup can never be clobbered. Returns the
+ * backup ref (Blob URL or fs path), or null if the backup couldn't be
+ * written (the caller decides whether to proceed).
+ */
+export async function backupOrdersJson(
+  orders: unknown[]
+): Promise<string | null> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const body = JSON.stringify(orders, null, 2);
+  try {
+    if (STORAGE_BACKEND === "blob") {
+      const result = await put(`admin/orders.backup-${stamp}.json`, body, {
+        access: "private",
+        addRandomSuffix: false,
+        contentType: "application/json",
+        allowOverwrite: false,
+        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+      });
+      return result.url;
+    }
+    const backupPath = ORDERS_FS_PATH.replace(
+      /orders\.json$/,
+      `orders.backup-${stamp}.json`
+    );
+    await fs.writeFile(backupPath, body, "utf8");
+    return backupPath;
+  } catch {
+    return null;
+  }
 }
 
 // ─── File uploads ──────────────────────────────────────────────────────
