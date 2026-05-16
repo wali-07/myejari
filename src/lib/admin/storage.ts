@@ -37,9 +37,33 @@ const ORDERS_FS_PATH = path.join(
 const UPLOADS_FS_DIR = path.join(process.cwd(), "data", "admin-uploads");
 
 // ─── Orders JSON ───────────────────────────────────────────────────────
+//
+// orders.json is the mutable source of truth. Vercel Blob serves a public
+// blob through its edge CDN, and the default cache lifetime is ONE MONTH
+// (`cacheControlMaxAge`). Overwriting a blob does NOT purge that CDN, and
+// `fetch(..., { cache: "no-store" })` only bypasses Next's own fetch cache
+// — never Blob's CDN. That is why a freshly created order stayed invisible
+// for up to a month and ad-hoc invoice uploads 404'd (the upload route read
+// a stale list that didn't contain the just-created order).
+//
+// Two defences:
+//   1. `cacheControlMaxAge: 60` — the SDK minimum — caps cross-instance
+//      staleness at ~60s instead of ~30 days.
+//   2. A per-process write-through copy: the instance that performed a
+//      write serves its own copy for a short window, so create → refresh
+//      and create → upload are immediately consistent on the warm instance
+//      the admin is actually using (the common single-admin case).
+
+/** SDK minimum for `cacheControlMaxAge` — can't be set lower than 1 minute. */
+const ORDERS_CACHE_MAX_AGE_SECONDS = 60;
+/** Trust our own just-written copy a little longer than the CDN window. */
+const WRITE_TRUST_WINDOW_MS = 120_000;
 
 /** A small in-memory cache of the orders blob URL — saved per-process. */
 let cachedOrdersBlobUrl: string | null = null;
+/** Last orders array this process wrote, with when — read-after-write. */
+let lastWrittenOrders: unknown[] | null = null;
+let lastWriteAt = 0;
 
 export async function readOrdersJson(): Promise<unknown[]> {
   if (STORAGE_BACKEND === "blob") {
@@ -72,27 +96,88 @@ export async function writeOrdersJson(orders: unknown[]): Promise<void> {
 }
 
 async function readOrdersJsonFromBlob(): Promise<unknown[]> {
-  if (cachedOrdersBlobUrl) {
-    const res = await fetch(cachedOrdersBlobUrl, { cache: "no-store" });
-    if (res.ok) return (await res.json()) as unknown[];
-    cachedOrdersBlobUrl = null;
+  // 1. If THIS instance wrote recently, the CDN copy may still be the
+  //    pre-write version (≤60s window). Our own copy is authoritative —
+  //    this is what makes create → refresh and create → upload consistent
+  //    on the warm instance the admin is using.
+  if (
+    lastWrittenOrders &&
+    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS
+  ) {
+    return lastWrittenOrders;
   }
 
-  // Look up the existing blob URL via list().
-  const { list } = await import("@vercel/blob");
-  const result = await list({ prefix: ORDERS_BLOB_KEY });
-  const existing = result.blobs.find((b) => b.pathname === ORDERS_BLOB_KEY);
-
-  if (existing) {
-    cachedOrdersBlobUrl = existing.url;
-    const res = await fetch(existing.url, { cache: "no-store" });
-    return (await res.json()) as unknown[];
+  // 2. Read the (now ≤60s-fresh) document from the public blob URL.
+  try {
+    if (!cachedOrdersBlobUrl) {
+      const { list } = await import("@vercel/blob");
+      const result = await list({ prefix: ORDERS_BLOB_KEY });
+      const existing = result.blobs.find(
+        (b) => b.pathname === ORDERS_BLOB_KEY
+      );
+      if (existing) cachedOrdersBlobUrl = existing.url;
+    }
+    if (cachedOrdersBlobUrl) {
+      const res = await fetch(cachedOrdersBlobUrl, { cache: "no-store" });
+      if (res.ok) return (await res.json()) as unknown[];
+      cachedOrdersBlobUrl = null; // stale URL — rediscover next read
+    }
+  } catch {
+    // Transient Blob/CDN hiccup — fall through to the resilience paths
+    // below instead of throwing (which is what produced the error page).
   }
 
-  // First-run seed — use the bundled JSON (always available on Vercel
-  // because the static import is included in the function bundle).
+  // 3. Couldn't read it. Prefer our last in-memory copy over crashing.
+  if (lastWrittenOrders) return lastWrittenOrders;
+
+  // 4. Genuine first run (or wholly unreadable) — seed it, but NEVER
+  //    overwrite an existing document.
+  return seedOrdersJson();
+}
+
+/**
+ * First-run seed. Writes the bundled JSON only if no document exists yet.
+ * `allowOverwrite: false` is the safety belt: a stale/racing read here can
+ * never clobber real orders (the old code's list()-miss path could wipe
+ * the entire dataset back to the 122-order seed).
+ */
+async function seedOrdersJson(): Promise<unknown[]> {
   const seed = bundledOrdersData as unknown[];
-  await writeOrdersJsonToBlob(seed);
+  try {
+    const result = await put(
+      ORDERS_BLOB_KEY,
+      JSON.stringify(seed, null, 2),
+      {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "application/json",
+        allowOverwrite: false,
+        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+      }
+    );
+    cachedOrdersBlobUrl = result.url;
+    lastWrittenOrders = seed;
+    lastWriteAt = Date.now();
+  } catch {
+    // Already exists → this is NOT a first run; the document is real and
+    // must not be clobbered. Best-effort: read what's actually there.
+    try {
+      const { list } = await import("@vercel/blob");
+      const result = await list({ prefix: ORDERS_BLOB_KEY });
+      const existing = result.blobs.find(
+        (b) => b.pathname === ORDERS_BLOB_KEY
+      );
+      if (existing) {
+        const res = await fetch(existing.url, { cache: "no-store" });
+        if (res.ok) {
+          cachedOrdersBlobUrl = existing.url;
+          return (await res.json()) as unknown[];
+        }
+      }
+    } catch {
+      /* fall through to returning the bundled seed read-only */
+    }
+  }
   return seed;
 }
 
@@ -105,9 +190,14 @@ async function writeOrdersJsonToBlob(orders: unknown[]): Promise<void> {
       addRandomSuffix: false,
       contentType: "application/json",
       allowOverwrite: true,
+      cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
     }
   );
   cachedOrdersBlobUrl = result.url;
+  // This instance is now authoritative for its own reads for a short
+  // window — bridges the ≤60s edge-cache gap after an overwrite.
+  lastWrittenOrders = orders;
+  lastWriteAt = Date.now();
 }
 
 // ─── File uploads ──────────────────────────────────────────────────────
