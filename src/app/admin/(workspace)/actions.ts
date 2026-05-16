@@ -57,45 +57,54 @@ export async function createOrder(
   if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
     return { ok: false, error: "Wholesale price must be ≥ 0" };
 
-  // Invoice number = max(existing) + 1. Deleting an unpaid order frees up
-  // its number — the next created order will reuse it.
-  const orders = await readOrders();
-  const invoice = nextInvoiceNumber(orders);
+  try {
+    // Invoice number = max(existing) + 1. Deleting an unpaid order frees
+    // up its number — the next created order will reuse it.
+    const orders = await readOrders();
+    const invoice = nextInvoiceNumber(orders);
 
-  const gatewayFees = calculateGatewayFees(
-    input.myEjariPrice,
-    input.paymentMethod
-  );
-  const margin = input.myEjariPrice - input.wholesalePrice;
-  const commissionPct =
-    input.myEjariPrice > 0 ? margin / input.myEjariPrice : 0;
-  const finalProfit = margin - gatewayFees;
+    const gatewayFees = calculateGatewayFees(
+      input.myEjariPrice,
+      input.paymentMethod
+    );
+    const margin = input.myEjariPrice - input.wholesalePrice;
+    const commissionPct =
+      input.myEjariPrice > 0 ? margin / input.myEjariPrice : 0;
+    const finalProfit = margin - gatewayFees;
 
-  const order: Order = {
-    invoice,
-    date: todayIso(),
-    company: input.company.trim(),
-    contactMobile: input.contactMobile.trim(),
-    paymentMethod: input.paymentMethod,
-    paymentMethodRaw: input.paymentMethod,
-    wholesaler: input.wholesaler.trim(),
-    wholesalePrice: input.wholesalePrice,
-    myEjariPrice: input.myEjariPrice,
-    margin,
-    commissionPct,
-    gatewayFees,
-    finalProfit,
-    refundStatus: "none",
-    paymentStatus: "unpaid",
-    serviceLocation: input.serviceLocation.trim() || undefined,
-    validity: input.validity,
-    inspectionIncluded: input.inspectionIncluded,
-    tradeLicensePath: input.tradeLicensePath || undefined,
-  };
+    const order: Order = {
+      invoice,
+      date: todayIso(),
+      company: input.company.trim(),
+      contactMobile: input.contactMobile.trim(),
+      paymentMethod: input.paymentMethod,
+      paymentMethodRaw: input.paymentMethod,
+      wholesaler: input.wholesaler.trim(),
+      wholesalePrice: input.wholesalePrice,
+      myEjariPrice: input.myEjariPrice,
+      margin,
+      commissionPct,
+      gatewayFees,
+      finalProfit,
+      refundStatus: "none",
+      paymentStatus: "unpaid",
+      serviceLocation: input.serviceLocation.trim() || undefined,
+      validity: input.validity,
+      inspectionIncluded: input.inspectionIncluded,
+      tradeLicensePath: input.tradeLicensePath || undefined,
+    };
 
-  await writeOrders([...orders, order]);
-  revalidatePath("/admin");
-  return { ok: true, invoice };
+    await writeOrders([...orders, order]);
+    revalidatePath("/admin");
+    return { ok: true, invoice };
+  } catch {
+    // Storage hiccup — surface a friendly message instead of throwing,
+    // which would render the Next.js error page and lose the form.
+    return {
+      ok: false,
+      error: "Couldn't save the order — please try again in a moment.",
+    };
+  }
 }
 
 /**

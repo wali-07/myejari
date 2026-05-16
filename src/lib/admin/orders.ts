@@ -143,15 +143,20 @@ export function filterOrdersByRange(
 }
 
 /**
- * Card-payment gateway fees: 2.6% of the customer-paid amount plus AED 1.
- * Bank transfers and other methods carry no gateway fee.
+ * Ziina payment-link fee: 2.6% of the customer-paid amount + AED 1, and
+ * then 5% UAE VAT on that processing fee — i.e. the amount Ziina actually
+ * deducts. Example: AED 1750 → (1750·0.026 + 1)·1.05 = AED 48.83.
  *
- * Used when creating new card orders so the admin doesn't need to look the
- * percentage up. Historical CRM data is preserved as-is — this only applies
- * to new entries created from the admin tool.
+ * Bank transfers don't go through Ziina, so they carry no fee.
+ *
+ * Used when creating new card/Ziina orders so the admin doesn't need to
+ * look the percentage up. Historical CRM data is preserved as-is — this
+ * only applies to new entries created from the admin tool.
  */
 export const CARD_GATEWAY_RATE = 0.026;
 export const CARD_GATEWAY_FIXED = 1;
+/** UAE VAT charged on Ziina's processing fee. */
+export const GATEWAY_VAT_RATE = 0.05;
 
 export function calculateGatewayFees(
   customerAmount: number,
@@ -159,9 +164,9 @@ export function calculateGatewayFees(
 ): number {
   if (paymentMethod !== "Card") return 0;
   if (!Number.isFinite(customerAmount) || customerAmount <= 0) return 0;
-  return Number(
-    (customerAmount * CARD_GATEWAY_RATE + CARD_GATEWAY_FIXED).toFixed(2)
-  );
+  const processingFee =
+    customerAmount * CARD_GATEWAY_RATE + CARD_GATEWAY_FIXED;
+  return Number((processingFee * (1 + GATEWAY_VAT_RATE)).toFixed(2));
 }
 
 /**

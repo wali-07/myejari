@@ -144,24 +144,31 @@ export default function CreateOrderModal({ wholesalers }: Props) {
       return;
     }
     setSubmitting(true);
-    const res = await createOrder({
-      company: companyName.trim(),
-      contactMobile: form.contactMobile,
-      serviceLocation: form.serviceLocation,
-      validity: form.validity,
-      inspectionIncluded: form.inspectionIncluded,
-      paymentMethod: form.paymentMethod,
-      myEjariPrice,
-      wholesalePrice,
-      wholesaler: form.wholesaler,
-      tradeLicensePath: uploaded?.storedPath,
-    });
-    if (res.ok) {
-      reset();
-      setOpen(false);
-      startTransition(() => router.refresh());
-    } else {
+    try {
+      const res = await createOrder({
+        company: companyName.trim(),
+        contactMobile: form.contactMobile,
+        serviceLocation: form.serviceLocation,
+        validity: form.validity,
+        inspectionIncluded: form.inspectionIncluded,
+        paymentMethod: form.paymentMethod,
+        myEjariPrice,
+        wholesalePrice,
+        wholesaler: form.wholesaler,
+        tradeLicensePath: uploaded?.storedPath,
+      });
+      if (res.ok) {
+        reset();
+        setOpen(false);
+        startTransition(() => router.refresh());
+        return;
+      }
       setError(res.error);
+    } catch {
+      // Server action threw (network/edge error) — don't leave the
+      // button stuck on "Creating…" with no feedback.
+      setError("Couldn't save the order — please try again in a moment.");
+    } finally {
       setSubmitting(false);
     }
   }
@@ -422,7 +429,7 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                     <SummaryRow
                       label={
                         form.paymentMethod === "Card"
-                          ? "Gateway fee (2.6% + 1)"
+                          ? "Ziina fee (2.6% + 1 + 5% VAT)"
                           : "Gateway fee"
                       }
                       value={formatAED(previewGateway)}

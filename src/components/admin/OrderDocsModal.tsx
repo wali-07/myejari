@@ -63,7 +63,6 @@ export default function OrderDocsModal({ order }: Props) {
 
   const hasWholesalerInvoice = !!order.wholesalerInvoicePath;
   const hasTradeLicense = !!order.tradeLicensePath;
-  const attachmentCount = (hasWholesalerInvoice ? 1 : 0) + (hasTradeLicense ? 1 : 0);
 
   async function handleFile(file: File) {
     setError(null);
@@ -99,19 +98,10 @@ export default function OrderDocsModal({ order }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={`Documents — ${attachmentCount} attached`}
-        className={`relative inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-          attachmentCount > 0
-            ? "text-primary hover:bg-primary-light/60"
-            : "text-gray-dark hover:bg-gray-light hover:text-foreground"
-        }`}
+        title="Documents"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-dark transition-colors hover:bg-gray-light hover:text-foreground"
       >
         <Paperclip size={14} />
-        {attachmentCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 inline-flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-            {attachmentCount}
-          </span>
-        )}
       </button>
 
       {open && (
@@ -170,42 +160,49 @@ export default function OrderDocsModal({ order }: Props) {
                 }
                 icon={<FileText size={16} />}
                 state={hasWholesalerInvoice ? "ready" : "missing"}
-                href={
-                  hasWholesalerInvoice
-                    ? storagePathToUrl(order.wholesalerInvoicePath!)
-                    : undefined
-                }
-                actionLabel={
-                  hasWholesalerInvoice ? "View" : undefined
-                }
                 rightSlot={
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className={
-                      hasWholesalerInvoice
-                        ? "inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-[11px] font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
-                        : "inline-flex h-8 items-center gap-1 rounded-lg bg-foreground px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
-                    }
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 size={12} className="animate-spin" />
-                        Uploading…
-                      </>
-                    ) : hasWholesalerInvoice ? (
-                      <>
-                        <ReplaceAll size={12} />
-                        Replace
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={12} />
-                        Upload
-                      </>
+                  <div className="flex items-center gap-1.5">
+                    {hasWholesalerInvoice && (
+                      <a
+                        href={storagePathToUrl(
+                          order.wholesalerInvoicePath!
+                        )}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-[11px] font-medium text-foreground/80 transition-colors hover:text-foreground"
+                      >
+                        <Download size={12} />
+                        View
+                      </a>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className={
+                        hasWholesalerInvoice
+                          ? "inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-[11px] font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
+                          : "inline-flex h-8 items-center gap-1 rounded-lg bg-foreground px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
+                      }
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Uploading…
+                        </>
+                      ) : hasWholesalerInvoice ? (
+                        <>
+                          <ReplaceAll size={12} />
+                          Replace
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={12} />
+                          Upload
+                        </>
+                      )}
+                    </button>
+                  </div>
                 }
               />
 
