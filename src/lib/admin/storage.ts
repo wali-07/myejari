@@ -3,7 +3,7 @@ import "server-only";
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { put, del } from "@vercel/blob";
+import { put, del, get } from "@vercel/blob";
 // Bundled CRM seed — guaranteed to ship with the function on Vercel
 // because it's a regular import (Next's bundler picks it up). Used as
 // the first-run seed for the Blob store and as a read-only fallback
@@ -46,13 +46,22 @@ const UPLOADS_FS_DIR = path.join(process.cwd(), "data", "admin-uploads");
 // for up to a month and ad-hoc invoice uploads 404'd (the upload route read
 // a stale list that didn't contain the just-created order).
 //
-// Two defences:
-//   1. `cacheControlMaxAge: 60` — the SDK minimum — caps cross-instance
-//      staleness at ~60s instead of ~30 days.
-//   2. A per-process write-through copy: the instance that performed a
-//      write serves its own copy for a short window, so create → refresh
-//      and create → upload are immediately consistent on the warm instance
-//      the admin is actually using (the common single-admin case).
+// Defences, strongest first:
+//   1. orders.json is written as a PRIVATE blob and read straight from
+//      origin with `get(..., { useCache: false })` — strongly consistent
+//      across every instance (writes are visible immediately) and no
+//      longer world-readable at a guessable public URL.
+//   2. `cacheControlMaxAge: 60` — the SDK minimum — caps staleness on any
+//      remaining public-CDN fallback path at ~60s instead of ~30 days.
+//   3. A per-process write-through copy: the instance that performed a
+//      write serves its own copy for a short window — resilience if a
+//      strongly-consistent read transiently fails (no error page).
+//
+// Migration: a document written before this change is still PUBLIC. The
+// first read falls back to the public path, serves it, and re-writes it
+// as private (once) so every subsequent read is strongly consistent. If
+// private blobs are unavailable on the store, writes degrade to public
+// (the dashboard keeps working, just with the ≤60s window from #2).
 
 /** SDK minimum for `cacheControlMaxAge` — can't be set lower than 1 minute. */
 const ORDERS_CACHE_MAX_AGE_SECONDS = 60;
@@ -64,6 +73,8 @@ let cachedOrdersBlobUrl: string | null = null;
 /** Last orders array this process wrote, with when — read-after-write. */
 let lastWrittenOrders: unknown[] | null = null;
 let lastWriteAt = 0;
+/** Once-per-process flag so a legacy public doc is migrated to private once. */
+let migratedThisProcess = false;
 
 export async function readOrdersJson(): Promise<unknown[]> {
   if (STORAGE_BACKEND === "blob") {
@@ -96,18 +107,62 @@ export async function writeOrdersJson(orders: unknown[]): Promise<void> {
 }
 
 async function readOrdersJsonFromBlob(): Promise<unknown[]> {
-  // 1. If THIS instance wrote recently, the CDN copy may still be the
-  //    pre-write version (≤60s window). Our own copy is authoritative —
-  //    this is what makes create → refresh and create → upload consistent
-  //    on the warm instance the admin is using.
-  if (
-    lastWrittenOrders &&
-    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS
-  ) {
-    return lastWrittenOrders;
+  const haveFreshLocal =
+    !!lastWrittenOrders &&
+    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS;
+
+  // 1. Strongly-consistent read straight from origin storage. `useCache:
+  //    false` is only honoured for PRIVATE blobs — which is why writes go
+  //    out as private. This reflects every write immediately, on every
+  //    serverless instance: the real fix for "I created an order and
+  //    still don't see it".
+  try {
+    const res = await get(ORDERS_BLOB_KEY, {
+      access: "private",
+      useCache: false,
+    });
+    if (res && res.statusCode === 200) {
+      const parsed = (await new Response(
+        res.stream as ReadableStream<Uint8Array>
+      ).json()) as unknown[];
+      lastWrittenOrders = parsed;
+      lastWriteAt = Date.now();
+      return parsed;
+    }
+    // res === null → no PRIVATE document. Either a genuine first run or a
+    // legacy PUBLIC document from before this change — fall through.
+  } catch {
+    // Private read unavailable/transient — fall through.
   }
 
-  // 2. Read the (now ≤60s-fresh) document from the public blob URL.
+  // 2. If this instance wrote recently, trust its own copy.
+  if (haveFreshLocal) return lastWrittenOrders as unknown[];
+
+  // 3. Legacy/public fallback: read the old public blob, then migrate it
+  //    to private once so every subsequent read is strongly consistent.
+  const legacy = await readPublicOrdersJson();
+  if (legacy) {
+    if (!migratedThisProcess) {
+      migratedThisProcess = true;
+      try {
+        await writeOrdersJsonToBlob(legacy);
+      } catch {
+        /* migration is best-effort — the data is still served below */
+      }
+    }
+    return legacy;
+  }
+
+  // 4. Couldn't read it anywhere. Prefer our last in-memory copy.
+  if (lastWrittenOrders) return lastWrittenOrders;
+
+  // 5. Genuine first run (or wholly unreadable) — seed it, but NEVER
+  //    overwrite an existing document.
+  return seedOrdersJson();
+}
+
+/** Read the legacy/public orders blob via list() + its public URL. */
+async function readPublicOrdersJson(): Promise<unknown[] | null> {
   try {
     if (!cachedOrdersBlobUrl) {
       const { list } = await import("@vercel/blob");
@@ -123,16 +178,9 @@ async function readOrdersJsonFromBlob(): Promise<unknown[]> {
       cachedOrdersBlobUrl = null; // stale URL — rediscover next read
     }
   } catch {
-    // Transient Blob/CDN hiccup — fall through to the resilience paths
-    // below instead of throwing (which is what produced the error page).
+    /* fall through */
   }
-
-  // 3. Couldn't read it. Prefer our last in-memory copy over crashing.
-  if (lastWrittenOrders) return lastWrittenOrders;
-
-  // 4. Genuine first run (or wholly unreadable) — seed it, but NEVER
-  //    overwrite an existing document.
-  return seedOrdersJson();
+  return null;
 }
 
 /**
@@ -182,20 +230,33 @@ async function seedOrdersJson(): Promise<unknown[]> {
 }
 
 async function writeOrdersJsonToBlob(orders: unknown[]): Promise<void> {
-  const result = await put(
-    ORDERS_BLOB_KEY,
-    JSON.stringify(orders, null, 2),
-    {
+  const body = JSON.stringify(orders, null, 2);
+  const opts = {
+    addRandomSuffix: false as const,
+    contentType: "application/json",
+    allowOverwrite: true as const,
+    cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
+  };
+  try {
+    // Private: not world-readable, and strongly consistent on read via
+    // get({ useCache: false }).
+    const result = await put(ORDERS_BLOB_KEY, body, {
+      ...opts,
+      access: "private",
+    });
+    cachedOrdersBlobUrl = result.url;
+  } catch {
+    // Private blobs may be unavailable on the store — fall back to a
+    // public write so creating an order never regresses to the error
+    // page. Reads then take the ≤60s public path instead.
+    const result = await put(ORDERS_BLOB_KEY, body, {
+      ...opts,
       access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      allowOverwrite: true,
-      cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
-    }
-  );
-  cachedOrdersBlobUrl = result.url;
+    });
+    cachedOrdersBlobUrl = result.url;
+  }
   // This instance is now authoritative for its own reads for a short
-  // window — bridges the ≤60s edge-cache gap after an overwrite.
+  // window — resilience if a strongly-consistent read transiently fails.
   lastWrittenOrders = orders;
   lastWriteAt = Date.now();
 }
