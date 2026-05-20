@@ -1,11 +1,18 @@
 import "server-only";
 
-// Trade-license company-name extractor. Uses pdf2json (pure JS, no worker
-// dependency so it works inside Next's bundled server runtime). Walks the
-// extracted text with heuristics tuned for Dubai DET licenses, which lay
-// text out as `VALUE \t LABEL` (English value first, label after the tab).
-// Always returns the raw text alongside so the UI can fall back to a
-// manual edit if the guess is wrong.
+import Anthropic from "@anthropic-ai/sdk";
+
+// Trade-license company-name extractor. Two paths:
+//
+//   1. pdf2json (fast/free) — walks the PDF's text layer with regex tuned
+//      for Dubai DET licenses. Works for digitally-generated PDFs; useless
+//      for screenshots or scanned image-only PDFs.
+//   2. Claude Haiku Vision — handles screenshots, photos, and image-only
+//      PDFs. Costs ~$0.005 per call. Used as primary path for images and
+//      as a fallback for PDFs whose text layer is empty.
+//
+// Both paths return a TradeLicenseExtraction; the UI's manual-edit field
+// is always shown so the admin can override a wrong guess.
 //
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFParser = require("pdf2json");
@@ -166,4 +173,110 @@ export async function extractTradeLicense(
   // 3. Final fallback — first sufficiently long line.
   const fallback = cleanedLines.find((l) => l.length >= 6) ?? "";
   return { companyName: fallback, rawText: text, highConfidence: false };
+}
+
+// ─── Vision path ─────────────────────────────────────────────────────
+//
+// Single-shot Claude Haiku call. The system prompt is intentionally tight
+// — return ONLY the trade name or the literal string "UNKNOWN" — so we
+// don't need few-shot examples and don't need to parse around prose.
+
+const VISION_MODEL = "claude-haiku-4-5";
+const VISION_SYSTEM =
+  "You extract the English trade name (company name) from UAE trade " +
+  "license documents. Return ONLY the trade name exactly as printed, " +
+  "with no quotes, no labels, no commentary. If you cannot find a clear " +
+  "English trade name, return only the word: UNKNOWN";
+
+const VISION_IMAGE_MIME = new Set<
+  "image/jpeg" | "image/png" | "image/gif" | "image/webp"
+>(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
+type VisionMime =
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp"
+  | "application/pdf";
+
+/** True when the file's MIME is one Claude Vision can accept directly. */
+export function isVisionCompatible(mimeType: string): boolean {
+  return (
+    mimeType === "application/pdf" ||
+    VISION_IMAGE_MIME.has(mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp")
+  );
+}
+
+/**
+ * Run the uploaded file through Claude Haiku Vision and return the
+ * extracted company name. Resilient by design — every error path returns
+ * an empty-name extraction so the upload itself never fails because of
+ * an OCR hiccup; the admin can always type the name manually.
+ */
+export async function extractTradeLicenseVision(
+  buffer: Buffer,
+  mimeType: string
+): Promise<TradeLicenseExtraction> {
+  const empty: TradeLicenseExtraction = {
+    companyName: "",
+    rawText: "",
+    highConfidence: false,
+  };
+
+  if (!process.env.ANTHROPIC_API_KEY) return empty;
+  if (!isVisionCompatible(mimeType)) return empty;
+
+  const data = buffer.toString("base64");
+  const mime = mimeType as VisionMime;
+
+  const block =
+    mime === "application/pdf"
+      ? {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data,
+          },
+        }
+      : {
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: mime, data },
+        };
+
+  try {
+    const client = new Anthropic();
+    const response = await client.messages.create({
+      model: VISION_MODEL,
+      max_tokens: 200,
+      system: VISION_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [
+            block,
+            {
+              type: "text",
+              text: "Extract the English trade name from this UAE trade license.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+
+    if (!text || /^unknown\.?$/i.test(text)) {
+      return { ...empty, rawText: text };
+    }
+    return { companyName: text, rawText: text, highConfidence: true };
+  } catch (err) {
+    console.error("[tl-extract] vision call failed:", err);
+    return empty;
+  }
 }

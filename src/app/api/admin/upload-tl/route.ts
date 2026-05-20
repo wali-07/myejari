@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
-import { extractTradeLicense } from "@/lib/admin/tl-extract";
+import {
+  extractTradeLicense,
+  extractTradeLicenseVision,
+  isVisionCompatible,
+} from "@/lib/admin/tl-extract";
 import { putUpload } from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
@@ -69,13 +73,32 @@ export async function POST(request: Request) {
   const key = `trade-licenses/${fileName}`;
   const stored = await putUpload(key, buffer, file.type || "application/octet-stream");
 
+  // Extraction strategy:
+  //   PDF  → pdf2json first (fast/free, works on text-layer PDFs).
+  //          Fall back to Vision if it returned nothing.
+  //   IMG  → Vision directly. pdf2json doesn't speak images.
+  //
+  // Both paths log errors and return an empty companyName instead of
+  // failing — the admin can always type the name manually.
   let extraction = { companyName: "", rawText: "", highConfidence: false };
+  const mimeType = file.type || "application/octet-stream";
+
   if (isPdf) {
     try {
       extraction = await extractTradeLicense(buffer);
     } catch (err) {
-      console.error("[upload-tl] extraction failed:", err);
+      console.error("[upload-tl] pdf2json extraction failed:", err);
     }
+    // Image-only PDF (no text layer) → Vision fallback.
+    if (!extraction.companyName) {
+      const vision = await extractTradeLicenseVision(
+        buffer,
+        "application/pdf"
+      );
+      if (vision.companyName) extraction = vision;
+    }
+  } else if (isImage && isVisionCompatible(mimeType)) {
+    extraction = await extractTradeLicenseVision(buffer, mimeType);
   }
 
   return NextResponse.json({
