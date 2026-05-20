@@ -24,12 +24,33 @@ export async function getAllOrders(): Promise<Order[]> {
 }
 
 /**
- * Delete an order by invoice number — only succeeds when paymentStatus
- * is "unpaid". The deleted invoice number becomes available again, so
- * the next created order will reuse it (since `nextInvoiceNumber` just
- * scans for max + 1 across remaining orders).
+ * Replace an order in place, matched by invoice number. Works regardless
+ * of payment status — the admin can correct any order (including paid
+ * ones) from the details popup. The `patch` callback receives the current
+ * record and returns the full replacement so derived fields (margin,
+ * gateway fees, …) can be recomputed by the caller.
  */
-export async function deleteUnpaidOrder(
+export async function updateOrderRecord(
+  invoice: string,
+  patch: (current: Order) => Order
+): Promise<{ ok: boolean; error?: string }> {
+  const orders = await readOrders();
+  const idx = orders.findIndex(
+    (o) => o.invoice.toLowerCase() === invoice.toLowerCase()
+  );
+  if (idx < 0) return { ok: false, error: "Order not found" };
+  orders[idx] = patch(orders[idx]);
+  await writeOrders(orders);
+  return { ok: true };
+}
+
+/**
+ * Delete an order by invoice number, regardless of payment status. The
+ * deleted invoice number becomes available again, so the next created
+ * order will reuse it (since `nextInvoiceNumber` just scans for max + 1
+ * across remaining orders).
+ */
+export async function deleteOrderByInvoice(
   invoice: string
 ): Promise<{ ok: boolean; error?: string }> {
   const orders = await readOrders();
@@ -37,12 +58,6 @@ export async function deleteUnpaidOrder(
     (o) => o.invoice.toLowerCase() === invoice.toLowerCase()
   );
   if (idx < 0) return { ok: false, error: "Order not found" };
-  if (orders[idx].paymentStatus !== "unpaid") {
-    return {
-      ok: false,
-      error: "Only unpaid orders can be deleted",
-    };
-  }
   orders.splice(idx, 1);
   await writeOrders(orders);
   return { ok: true };

@@ -127,7 +127,7 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
       <OrdersFilters query={query} />
 
       {/* Orders table — shows ALL filtered orders (paid + unpaid) */}
-      <OrdersTable orders={filtered} />
+      <OrdersTable orders={filtered} wholesalers={wholesalers} />
     </div>
   );
 }

@@ -10,8 +10,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { createOrder } from "@/app/admin/(workspace)/actions";
 import { calculateGatewayFees } from "@/lib/admin/orders";
 import { formatAED } from "@/lib/admin/format";
@@ -54,7 +53,6 @@ interface Props {
 }
 
 export default function CreateOrderModal({ wholesalers }: Props) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(DEFAULTS);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +64,6 @@ export default function CreateOrderModal({ wholesalers }: Props) {
   const [editingCompany, setEditingCompany] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -158,9 +155,13 @@ export default function CreateOrderModal({ wholesalers }: Props) {
         tradeLicensePath: uploaded?.storedPath,
       });
       if (res.ok) {
+        // createOrder revalidated /admin and pushed the fresh tree back as
+        // part of its own response (next/cache refresh, computed on the
+        // same instance that just wrote — so the new row is guaranteed to
+        // be in it). Just close; the table is already current. No second
+        // client round-trip that could land on a stale instance.
         reset();
         setOpen(false);
-        startTransition(() => router.refresh());
         return;
       }
       setError(res.error);

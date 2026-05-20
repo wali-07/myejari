@@ -1,17 +1,29 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import {
   calculateGatewayFees,
   nextInvoiceNumber,
   type Order,
   type PaymentMethod,
+  type PaymentStatus,
 } from "@/lib/admin/orders";
 import {
-  deleteUnpaidOrder,
+  deleteOrderByInvoice,
   readOrders,
+  updateOrderRecord,
   writeOrders,
 } from "@/lib/admin/orders-store";
+
+// Re-render the /admin route everywhere it's cached, then push the fresh
+// tree to the client router as part of THIS action's response. Doing both
+// from the server means a created/edited/deleted order is visible the
+// instant the action resolves — the client no longer has to fire its own
+// `router.refresh()` and hope the round-trip lands on fresh data.
+function refreshAdmin(): void {
+  revalidatePath("/admin");
+  refresh();
+}
 
 const VALID_PAYMENT_METHODS: PaymentMethod[] = ["Bank Transfer", "Card"];
 const VALID_VALIDITIES = ["1 year", "1 month"] as const;
@@ -95,7 +107,7 @@ export async function createOrder(
     };
 
     await writeOrders([...orders, order]);
-    revalidatePath("/admin");
+    refreshAdmin();
     return { ok: true, invoice };
   } catch {
     // Storage hiccup — surface a friendly message instead of throwing,
@@ -107,23 +119,98 @@ export async function createOrder(
   }
 }
 
+interface UpdateOrderInput {
+  company: string;
+  contactMobile: string;
+  serviceLocation: string;
+  validity: "1 year" | "1 month";
+  inspectionIncluded: boolean;
+  paymentMethod: PaymentMethod;
+  myEjariPrice: number;
+  wholesalePrice: number;
+  wholesaler: string;
+  paymentStatus: PaymentStatus;
+}
+
 /**
- * Delete an order. Only unpaid orders can be deleted — paid orders are
- * locked because they represent collected revenue. The invoice number
- * is NOT reissued; the counter keeps marching forward.
+ * Edit an existing order — works for ANY order, paid or unpaid. All
+ * money-derived fields (margin, commission, gateway fee, final profit)
+ * are recomputed from the edited inputs exactly the way createOrder
+ * computes them, so an edited order stays internally consistent. The
+ * invoice number, date, refund flag, and uploaded files are preserved.
+ */
+export async function updateOrder(
+  invoice: string,
+  input: UpdateOrderInput
+): Promise<{ ok: boolean; error?: string }> {
+  if (!input.company.trim()) return { ok: false, error: "Company is required" };
+  if (!VALID_PAYMENT_METHODS.includes(input.paymentMethod))
+    return { ok: false, error: "Invalid payment method" };
+  if (!VALID_VALIDITIES.includes(input.validity))
+    return { ok: false, error: "Invalid validity" };
+  if (!Number.isFinite(input.myEjariPrice) || input.myEjariPrice <= 0)
+    return { ok: false, error: "Customer amount must be positive" };
+  if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
+    return { ok: false, error: "Wholesale price must be ≥ 0" };
+  if (input.paymentStatus !== "paid" && input.paymentStatus !== "unpaid")
+    return { ok: false, error: "Invalid payment status" };
+
+  try {
+    const result = await updateOrderRecord(invoice, (current) => {
+      const margin = input.myEjariPrice - input.wholesalePrice;
+      const commissionPct =
+        input.myEjariPrice > 0 ? margin / input.myEjariPrice : 0;
+      const gatewayFees = calculateGatewayFees(
+        input.myEjariPrice,
+        input.paymentMethod
+      );
+      const finalProfit = margin - gatewayFees;
+      return {
+        ...current,
+        company: input.company.trim(),
+        contactMobile: input.contactMobile.trim(),
+        paymentMethod: input.paymentMethod,
+        paymentMethodRaw: input.paymentMethod,
+        wholesaler: input.wholesaler.trim(),
+        wholesalePrice: input.wholesalePrice,
+        myEjariPrice: input.myEjariPrice,
+        margin,
+        commissionPct,
+        gatewayFees,
+        finalProfit,
+        paymentStatus: input.paymentStatus,
+        serviceLocation: input.serviceLocation.trim() || undefined,
+        validity: input.validity,
+        inspectionIncluded: input.inspectionIncluded,
+      };
+    });
+    if (result.ok) refreshAdmin();
+    return result;
+  } catch {
+    return {
+      ok: false,
+      error: "Couldn't save the changes — please try again in a moment.",
+    };
+  }
+}
+
+/**
+ * Delete an order, paid or unpaid. The admin owns this surface and may
+ * need to remove a mistaken or test entry even after it was marked paid.
+ * The invoice number is NOT reissued; the counter keeps marching forward.
  */
 export async function deleteOrder(
   invoice: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const result = await deleteUnpaidOrder(invoice);
-  if (result.ok) revalidatePath("/admin");
+  const result = await deleteOrderByInvoice(invoice);
+  if (result.ok) refreshAdmin();
   return result;
 }
 
 /**
- * Mark an order as paid. Paid is a one-way transition — once an order is
- * marked paid, it can't be reverted to unpaid (paid invoices represent
- * collected revenue and shouldn't be quietly walked back).
+ * Quick "mark as paid" shortcut from the details popup. Editing the order
+ * can also flip payment status both ways; this is just the one-tap path
+ * for the common case. No-ops cleanly if already paid.
  */
 export async function markOrderPaid(
   invoice: string
@@ -136,6 +223,6 @@ export async function markOrderPaid(
   }
   orders[idx] = { ...orders[idx], paymentStatus: "paid" };
   await writeOrders(orders);
-  revalidatePath("/admin");
+  refreshAdmin();
   return { ok: true };
 }

@@ -3,9 +3,10 @@ import OrderRow from "@/components/admin/OrderRow";
 
 interface Props {
   orders: Order[];
+  wholesalers: string[];
 }
 
-export default function OrdersTable({ orders }: Props) {
+export default function OrdersTable({ orders, wholesalers }: Props) {
   // Most recent first — sort by date desc, then by invoice number desc to break ties.
   const rows = [...orders].sort((a, b) => {
     const d = b.date.localeCompare(a.date);
@@ -28,15 +29,14 @@ export default function OrdersTable({ orders }: Props) {
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3 text-right">GMV</th>
               <th className="px-3 py-3 text-right">Cost</th>
-              <th className="px-3 py-3 text-right">Net Revenue</th>
-              <th className="px-5 py-3 text-right">Actions</th>
+              <th className="px-5 py-3 text-right">Net Revenue</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={10}
                   className="px-6 py-10 text-center text-sm text-gray"
                 >
                   No orders match the current filters.
@@ -46,7 +46,11 @@ export default function OrdersTable({ orders }: Props) {
               rows.map((o, idx) => (
                 // Some legacy CRM rows share an invoice number, so
                 // composite-key the row with the array index too.
-                <OrderRow key={`${o.invoice}-${o.date}-${idx}`} order={o} />
+                <OrderRow
+                  key={`${o.invoice}-${o.date}-${idx}`}
+                  order={o}
+                  wholesalers={wholesalers}
+                />
               ))
             )}
           </tbody>

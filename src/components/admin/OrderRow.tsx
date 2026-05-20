@@ -1,14 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { FileDown } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import type { Order } from "@/lib/admin/orders";
 import { netRevenueOf } from "@/lib/admin/orders";
 import { formatAED, formatDate } from "@/lib/admin/format";
-import OrderPaymentStatus from "@/components/admin/OrderPaymentStatus";
-import OrderDocsModal from "@/components/admin/OrderDocsModal";
-import DeleteOrderButton from "@/components/admin/DeleteOrderButton";
 import OrderDetailsModal from "@/components/admin/OrderDetailsModal";
 
 const REFUND_BADGE: Record<Order["refundStatus"], string | null> = {
@@ -25,17 +21,17 @@ const PAYMENT_BADGE: Record<Order["paymentMethod"], string> = {
 
 interface Props {
   order: Order;
+  wholesalers: string[];
 }
 
-// One table row. Clicking anywhere on the row (except the interactive
-// Status / Actions cells) opens the read-only details popup.
-export default function OrderRow({ order: o }: Props) {
+// One table row. The row is display-only — clicking anywhere on it opens
+// the details popup, which is the single surface for every mutation
+// (edit, mark paid, upload invoice, delete).
+export default function OrderRow({ order: o, wholesalers }: Props) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const badge = REFUND_BADGE[o.refundStatus];
   const net = netRevenueOf(o);
-
-  // Keep clicks on interactive cells from also opening the details modal.
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const isPaid = o.paymentStatus === "paid";
 
   return (
     <>
@@ -81,8 +77,18 @@ export default function OrderRow({ order: o }: Props) {
             {o.paymentMethod}
           </span>
         </td>
-        <td className="whitespace-nowrap px-3 py-3" onClick={stop}>
-          <OrderPaymentStatus order={o} />
+        <td className="whitespace-nowrap px-3 py-3">
+          {isPaid ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success ring-1 ring-success/20">
+              <Check size={10} />
+              Paid
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber ring-1 ring-amber/30">
+              <Clock size={10} />
+              Not paid
+            </span>
+          )}
         </td>
         <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-foreground">
           {formatAED(o.myEjariPrice)}
@@ -91,31 +97,11 @@ export default function OrderRow({ order: o }: Props) {
           {formatAED(o.wholesalePrice)}
         </td>
         <td
-          className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${
+          className={`whitespace-nowrap px-5 py-3 text-right tabular-nums ${
             net < 0 ? "text-coral" : "text-foreground"
           }`}
         >
           {formatAED(net)}
-        </td>
-        <td
-          className="whitespace-nowrap px-5 py-3 text-right"
-          onClick={stop}
-        >
-          <div className="inline-flex items-center gap-0.5">
-            <Link
-              href={`/admin/invoices/${o.invoice}`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-dark transition-colors hover:bg-gray-light hover:text-foreground"
-              title={`Open invoice ${o.invoice} (PDF)`}
-            >
-              <FileDown size={14} />
-            </Link>
-            <OrderDocsModal order={o} />
-            {o.paymentStatus === "unpaid" && (
-              <DeleteOrderButton invoice={o.invoice} />
-            )}
-          </div>
         </td>
       </tr>
 
@@ -124,6 +110,7 @@ export default function OrderRow({ order: o }: Props) {
           order={o}
           open
           onClose={() => setDetailsOpen(false)}
+          wholesalers={wholesalers}
         />
       )}
     </>
