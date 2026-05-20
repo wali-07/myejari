@@ -34,16 +34,39 @@ Every CTA funnels into wa.me / WhatsApp.
 - Every CTA in an article uses a \`cta\` block with one of the standard
   \`message\` presets: \`default\`, \`getEjari\`, \`renewal\`, \`general\`.
 
-## NO prices, ever
+## NO prices, no price-adjacent comparisons — ever
 
 This is the strongest constraint. It supersedes every other rule when in
-conflict.
+conflict. Two layers — both apply:
 
-- No AED amounts. No dirham, no \$, no figures of any kind.
-- No "cheapest", "best rate", "lowest", "competitive pricing", "best
-  deal", "affordable", "no hidden fees", "value for money".
-- No price ranges, no "starting from", no "as low as".
-- If a third-party review or quote mentions a price, redact it.
+**Layer 1: Hard ban — never use any of these**
+
+- AED amounts, dirham, \$, or any numeric figure of money.
+- "cheapest", "best rate", "lowest", "competitive pricing", "best deal",
+  "affordable", "no hidden fees", "value for money".
+- Price ranges, "starting from", "as low as".
+
+**Layer 2: Soft ban — never use these as load-bearing comparisons either**
+
+The first pipeline run had agents slip in "the most expensive option",
+"save a meaningful amount of capital", "without paying for square footage
+you will never use", "without overpaying". These are price comparisons
+without specific numbers — still off-brand and still create implicit
+expectations. Avoid:
+
+- "expensive", "cheap", "overpaying", "save capital", "save money",
+  "paying for / avoiding paying for [thing]".
+- "most expensive option", "most affordable", "most cost-effective".
+- "without overpaying", "without paying for [...]", "for less than [...]".
+- Any sentence that compares formats by cost as the dimension.
+
+**Reframe rule:** compare by FIT — activity, visa quota, headcount,
+footprint, flexibility, regulatory requirements. NOT by cost. If you
+catch yourself writing "the cheaper option" or "the expensive option",
+rewrite as "the smaller-footprint option" / "the most flexible option" /
+"the option that supports a larger headcount", etc.
+
+If a third-party review mentions a price, redact it.
 
 ## NO regulator-outcome guarantees
 
@@ -54,7 +77,7 @@ Never claim a regulator will do something. The big ones to avoid:
 - "Always accepted"
 - "Never rejected"
 - Any phrasing where DLD / DET / RERA / DEWA / a free zone authority is
-  the subject of an action MyEjari is promising on their behalf
+  the subject of an action MyEjari is promising on their behalf.
 
 **Reason:** if a customer's Ejari/trade license is rejected for reasons
 outside our control (passport spelling, EID renewal, free zone quirks),
@@ -68,8 +91,7 @@ they can point to that promise as a service commitment we failed.
 - "Pre-vetted business centers" (our process)
 
 "Same-day issuance" is OK — that's an operational claim about MyEjari,
-not a regulator outcome. Don't extend to anything the regulator
-controls.
+not a regulator outcome. Don't extend to anything the regulator controls.
 
 ## Hedged regulator language
 
@@ -99,6 +121,47 @@ Articles are educational/informational only. Never "this is the legal
 requirement" without a direct DLD/DET citation. Never give tax,
 accounting, or immigration advice.
 
+# Structural integrity — non-negotiable
+
+Two structural rules every agent must enforce. A violation here ships a
+broken page or a 404 in production — neither is acceptable.
+
+## Cross-link rules
+
+Every \`links[]\` entry on a paragraph block has TWO fields that must
+both be valid for the link to render correctly:
+
+1. **\`match\`** — the substring the renderer searches for inside the
+   parent paragraph's \`text\`. **It must appear VERBATIM (case-sensitive,
+   character-for-character) in the parent paragraph's \`text\`.** If
+   \`match\` is "virtual office Ejari" and the paragraph contains
+   "virtual office address" or "Virtual Office Ejari" (different case),
+   the renderer silently fails to render the link. The H3 above the
+   paragraph does NOT count — only the paragraph's own \`text\` is
+   searched.
+
+2. **\`href\`** — the URL the link points to. For internal cross-links,
+   the format is \`/blog/<slug>\`. **The slug MUST be one of the slugs
+   in the topic brief's \`existingSlugs\` list.** Never invent a slug.
+   If you want to point at a concept that doesn't have an article yet,
+   either drop the link or write the sentence inline without a link.
+
+**Pre-output check (every agent):** before returning your JSON, for
+every \`links[]\` entry in every paragraph:
+- Confirm the \`match\` substring is present in the parent paragraph's
+  final \`text\` exactly as written.
+- Confirm the \`href\` slug (the part after \`/blog/\`) is one of the
+  slugs in \`existingSlugs\`.
+- If either check fails, either fix the entry (update \`match\` to a
+  phrase that does appear, or replace the \`href\` with a valid slug)
+  or remove the link entirely.
+
+## Slug existence
+
+The brief's \`existingSlugs\` list is the ONLY set of slugs that are
+safe to link to from this article. Treat any other slug as an invalid
+link. Even slugs that "look right" but aren't in the list will 404.
+
 # Required structure for every article
 
 Every \`BlogPost\` object inserted into \`src/lib/posts.ts\` must have:
@@ -107,7 +170,7 @@ Every \`BlogPost\` object inserted into \`src/lib/posts.ts\` must have:
 |---|---|
 | \`slug\` | kebab-case, descriptive, keyword-aligned |
 | \`title\` | Primary keyword in the first 60 characters; total ≤ 65 chars (Google SERP truncation) |
-| \`description\` | 150–160 chars; concrete value pitch; no fluff; no regulator guarantees |
+| \`description\` | 150–160 chars; concrete value pitch; no fluff; no regulator guarantees; no price or price-adjacent language |
 | \`date\` / \`dateModified\` | ISO 8601 (YYYY-MM-DD) |
 | \`readingTime\` | Honest, ~200 words/min |
 | \`category\` | One of: Basics, Compliance, Strategy, How-to, Trade License, Activity |
@@ -164,10 +227,4 @@ interface BlogPost {
   faqs?: BlogFaq[];
 }
 \`\`\`
-
-# Cross-linking discipline
-
-Before adding \`links\` on a paragraph block, verify the target slug
-exists in the current \`posts\` array. Broken internal links hurt crawl
-trust. Available slugs are listed in the topic brief when applicable.
 `.trim();

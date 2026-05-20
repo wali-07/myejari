@@ -112,10 +112,22 @@ If approved:
    entry, before the closing `]`). Maintain the comment-block visual
    style ("// ────── N) Title ──────").
 2. Run `npx tsc --noEmit -p tsconfig.json` and fix any type errors.
-3. Update the publishing queue memory file
+3. **Run the cross-link validator.** `posts.ts` has a build-time
+   integrity guard that throws on any broken `match` or non-existent
+   slug. Trigger it locally before committing so a broken link doesn't
+   crash the Vercel deploy:
+
+   ```bash
+   node --input-type=module -e "import('./src/lib/posts.ts').then(() => console.log('OK')).catch(e => { console.error(e.message); process.exit(1); })"
+   ```
+
+   If it throws, fix the link (usually the `match` doesn't appear
+   verbatim in the paragraph's `text` — adjust to a substring that
+   does — or the `href` slug isn't in the array). Re-run until clean.
+4. Update the publishing queue memory file
    (`project_blog_publishing_queue.md`): change the topic's `⏳` to
    `✅` with the date.
-4. Commit with message:
+5. Commit with message:
 
    ```
    blog: add "{title}"
@@ -126,8 +138,10 @@ If approved:
    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
 
-5. Push to `main`. Vercel auto-deploys.
-6. Remind the user to request indexing in Google Search Console for
+6. Push to `main`. Vercel auto-deploys (the validator runs again in
+   the production build — a clean local validation effectively
+   guarantees a clean deploy).
+7. Remind the user to request indexing in Google Search Console for
    the new URL.
 
 ## Cost model

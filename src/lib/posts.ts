@@ -1028,7 +1028,7 @@ export const posts: BlogPost[] = [
         text: "We are the front line. You message us once on WhatsApp, send us photos of what you have, and we tell you exactly what's missing and how to fix it before the file goes to the business center. The Ejari issuance itself is fast — the document review is where most of the time gets saved or lost.",
         links: [
           {
-            match: "the Ejari issuance itself is fast",
+            match: "The Ejari issuance itself is fast",
             href: "/blog/how-long-does-ejari-take-dubai",
           },
         ],
@@ -2037,6 +2037,53 @@ export const posts: BlogPost[] = [
     ],
   },
 ];
+
+// ── Build-time integrity guard ────────────────────────────────────────
+//
+// Every internal cross-link in the blog has two failure modes that the
+// agent pipeline (and humans) have shipped in practice:
+//   1) `match` substring does not appear in the parent paragraph's
+//      `text` → renderer silently drops the <Link>, the user sees plain
+//      text where an internal link was intended.
+//   2) `href` points to /blog/<slug> where <slug> is not in `posts` →
+//      user clicks and lands on a 404.
+//
+// Both are silent in dev; both ship to production unnoticed. This
+// validator runs at module load (i.e. on every `next build`) and throws
+// if either invariant is violated. A throw here fails `next build`,
+// which fails the Vercel deploy — broken cross-links physically cannot
+// reach production.
+//
+// External links (https://…), anchor links (#…), and non-/blog internal
+// paths are skipped; we only enforce slug existence for the /blog/<slug>
+// pattern this blog uses.
+(function validateCrossLinks() {
+  const slugSet = new Set(posts.map((p) => p.slug));
+  for (const post of posts) {
+    for (const block of post.content) {
+      if (block.type !== "p" || !block.links) continue;
+      for (const link of block.links) {
+        if (!block.text.includes(link.match)) {
+          throw new Error(
+            `[posts.ts] Broken cross-link in "${post.slug}": match ` +
+              `${JSON.stringify(link.match)} not found verbatim in ` +
+              `its paragraph text. The H3 above does not count — the ` +
+              `match must appear in the paragraph's own \`text\` field.`
+          );
+        }
+        const internal = link.href.match(/^\/blog\/([^/?#]+)$/);
+        if (internal && !slugSet.has(internal[1])) {
+          throw new Error(
+            `[posts.ts] Broken cross-link in "${post.slug}": href ` +
+              `${JSON.stringify(link.href)} points to a slug that does ` +
+              `not exist in posts.ts. Add the article, fix the slug, or ` +
+              `remove the link.`
+          );
+        }
+      }
+    }
+  }
+})();
 
 export function getAllPosts(): BlogPost[] {
   return [...posts].sort((a, b) => (a.date < b.date ? 1 : -1));
