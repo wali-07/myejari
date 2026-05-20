@@ -318,6 +318,32 @@ export function paidOnly(orders: Order[]): Order[] {
   return orders.filter((o) => o.paymentStatus === "paid");
 }
 
+/** Status filter applied to the table view (does NOT affect KPI scope). */
+export type StatusFilter = "all" | "paid" | "unpaid";
+
+export function filterOrdersByStatus(
+  orders: Order[],
+  status: StatusFilter
+): Order[] {
+  if (status === "all") return orders;
+  return orders.filter((o) => o.paymentStatus === status);
+}
+
+/** Per-status counts used to label the segmented filter control. */
+export function countOrdersByStatus(orders: Order[]): {
+  all: number;
+  paid: number;
+  unpaid: number;
+} {
+  let paid = 0;
+  let unpaid = 0;
+  for (const o of orders) {
+    if (o.paymentStatus === "paid") paid++;
+    else unpaid++;
+  }
+  return { all: orders.length, paid, unpaid };
+}
+
 /** Compute KPIs + breakdowns from a filtered order set. */
 export function computeMetrics(orders: Order[]): OrderMetrics {
   const count = orders.length;
