@@ -202,12 +202,26 @@ markdown fences, no commentary, no extra fields:
 
 {
   "companyName": "<English trade name as printed, no quotes, or UNKNOWN>",
-  "activity": "<primary activity, or comma-separated list of all activities printed on the license, or UNKNOWN>",
-  "activityCode": "<activity code(s) printed alongside the activity, comma-separated if multiple, or UNKNOWN>"
+  "activity": "<ALL English activities printed on the license, comma-separated, in the order they appear, or UNKNOWN>",
+  "activityCode": "<ALL activity codes printed on the license, comma-separated in the SAME order as the activities, or UNKNOWN>"
 }
 
-If any field is not clearly present on the license, use the literal
-string "UNKNOWN" for that field. Do NOT guess or invent values.
+Important rules:
+
+- UAE trade licenses typically list 1–5 business activities, sometimes
+  more. **You MUST include every activity that is clearly printed on the
+  license**, not just the first one. Look for them in the activities /
+  business activities section — they are often numbered or listed in a
+  table with their codes alongside.
+- If you can identify N activities, the activityCode field should have
+  N codes in the same order. If only some have codes printed, write
+  the missing code as a literal "—" placeholder so the count still
+  matches (e.g. "Trading, Consulting, Software" + "1234, —, 5678").
+- Use the English names exactly as printed on the license. Do not
+  translate Arabic-only activities — skip them.
+- Do NOT invent activities. Only include what is actually printed.
+- If a field is not clearly readable on the license, use "UNKNOWN" for
+  that field.
 `.trim();
 
 const VISION_IMAGE_MIME = new Set<
@@ -316,9 +330,11 @@ export async function extractTradeLicenseVision(
             {
               type: "text",
               text:
-                "Extract the company name, activity, and activity code " +
-                "from this UAE trade license. Return only the JSON object " +
-                "described in the system prompt.",
+                "Extract the company name and ALL activities (with their " +
+                "codes if printed) from this UAE trade license. Most " +
+                "licenses list multiple activities — make sure you include " +
+                "every one that appears, not just the first. Return only " +
+                "the JSON object described in the system prompt.",
             },
           ],
         },
