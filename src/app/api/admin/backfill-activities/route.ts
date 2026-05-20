@@ -4,20 +4,25 @@ import { extractTradeLicenseVision } from "@/lib/admin/tl-extract";
 import { fetchUploadBytes } from "@/lib/admin/storage";
 import { readOrders, writeOrders } from "@/lib/admin/orders-store";
 
-// One-time-ish backfill: for each order with an uploaded trade license but
-// no `activity` field, fetch the TL bytes and run Claude Haiku Vision to
-// extract the activity + activity code. Idempotent — re-running just
-// processes orders that still don't have an activity set.
+// Backfill / re-backfill the `activity` + `activityCode` fields on orders
+// by running Claude Haiku Vision over the uploaded trade license. Two modes:
 //
-// Runs in BATCHES to stay under Vercel function time limits. The frontend
-// calls this repeatedly until `remaining === 0`. Each call processes up
-// to `batchSize` orders (default 20) and returns progress.
+//   - Default: only orders with a TL AND no activity yet (idempotent —
+//     re-running picks up only what's still missing).
+//   - Force: ALL orders with a TL, even ones already backfilled. Useful
+//     after a prompt change (e.g. "extract ALL activities, not just one")
+//     to re-run on already-processed orders without manually clearing
+//     their fields first.
 //
-// Cost: ~$0.005 per order processed via Haiku Vision. For 109 orders
-// that's ~AED 2 total. Negligible.
+// Runs in BATCHES to stay under Vercel function timeout. The frontend
+// calls this repeatedly until `remaining === 0`. In force mode, the
+// frontend tracks `nextOffset` and passes it back on each call so we
+// don't loop on the same already-updated orders.
+//
+// Cost: ~$0.005 per order processed via Haiku Vision.
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Vercel: extend timeout for batch processing
+export const maxDuration = 60;
 
 const DEFAULT_BATCH_SIZE = 20;
 const MAX_BATCH_SIZE = 50;
@@ -43,12 +48,16 @@ function mimeFromPath(p: string): string {
 
 interface BatchResult {
   batchSize: number;
+  force: boolean;
   processed: number;
   updated: number;
   skippedNoFile: number;
   skippedExtractFailed: number;
+  /** For force mode: pass this back as `offset` on the next call. */
+  nextOffset: number;
+  /** How many candidates remain after this batch. */
   remaining: number;
-  totalNeedsBackfill: number;
+  totalCandidates: number;
   errors: string[];
 }
 
@@ -60,7 +69,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { batchSize?: number } = {};
+  let body: { batchSize?: number; force?: boolean; offset?: number } = {};
   try {
     body = await request.json();
   } catch {
@@ -70,40 +79,50 @@ export async function POST(request: Request) {
     Math.max(1, body.batchSize ?? DEFAULT_BATCH_SIZE),
     MAX_BATCH_SIZE
   );
+  const force = body.force === true;
+  const offset = Math.max(0, Math.floor(body.offset ?? 0));
 
   const orders = await readOrders();
 
-  // Candidates: orders with a TL path AND no activity yet.
-  const candidates = orders.filter(
-    (o) => o.tradeLicensePath && !o.activity
+  // Stable ordering so offset slicing is deterministic across calls.
+  const sortedOrders = [...orders].sort((a, b) =>
+    a.invoice.localeCompare(b.invoice)
   );
-  const totalNeedsBackfill = candidates.length;
-  const batch = candidates.slice(0, batchSize);
+
+  const candidates = sortedOrders.filter(
+    (o) => o.tradeLicensePath && (force || !o.activity)
+  );
+  const totalCandidates = candidates.length;
+  const batch = candidates.slice(offset, offset + batchSize);
 
   if (batch.length === 0) {
     return NextResponse.json<BatchResult>({
       batchSize,
+      force,
       processed: 0,
       updated: 0,
       skippedNoFile: 0,
       skippedExtractFailed: 0,
-      remaining: 0,
-      totalNeedsBackfill: 0,
+      nextOffset: offset,
+      remaining: Math.max(0, totalCandidates - offset),
+      totalCandidates,
       errors: [],
     });
   }
 
-  // Build an index so we can mutate orders by invoice without scanning.
+  // Index for O(1) mutation by invoice.
   const byInvoice = new Map(orders.map((o) => [o.invoice, o]));
 
   const result: BatchResult = {
     batchSize,
+    force,
     processed: 0,
     updated: 0,
     skippedNoFile: 0,
     skippedExtractFailed: 0,
+    nextOffset: offset,
     remaining: 0,
-    totalNeedsBackfill,
+    totalCandidates,
     errors: [],
   };
 
@@ -141,33 +160,40 @@ export async function POST(request: Request) {
     }
   }
 
-  // Persist the mutated orders array.
   if (result.updated > 0) {
     const next = orders.map((o) => byInvoice.get(o.invoice) ?? o);
     await writeOrders(next);
   }
 
-  // Recompute remaining after this batch.
-  const updatedOrders = await readOrders();
-  result.remaining = updatedOrders.filter(
-    (o) => o.tradeLicensePath && !o.activity
-  ).length;
+  if (force) {
+    // Force mode is offset-driven — advance by what we processed.
+    result.nextOffset = offset + result.processed;
+    result.remaining = Math.max(0, totalCandidates - result.nextOffset);
+  } else {
+    // Default mode: candidates list shrinks as we backfill — recount.
+    const updatedOrders = await readOrders();
+    result.remaining = updatedOrders.filter(
+      (o) => o.tradeLicensePath && !o.activity
+    ).length;
+    result.nextOffset = 0;
+  }
 
   return NextResponse.json<BatchResult>(result);
 }
 
 export async function GET() {
-  // Status check: how many orders still need backfill.
   const orders = await readOrders();
+  const totalWithTL = orders.filter((o) => o.tradeLicensePath).length;
+  const totalWithActivity = orders.filter((o) => o.activity).length;
   const totalNeedsBackfill = orders.filter(
     (o) => o.tradeLicensePath && !o.activity
   ).length;
-  const totalWithTL = orders.filter((o) => o.tradeLicensePath).length;
-  const totalWithActivity = orders.filter((o) => o.activity).length;
   return NextResponse.json({
     totalOrders: orders.length,
     totalWithTL,
     totalWithActivity,
     totalNeedsBackfill,
+    // In force mode the client re-extracts all `totalWithTL` orders.
+    totalReextract: totalWithTL,
   });
 }

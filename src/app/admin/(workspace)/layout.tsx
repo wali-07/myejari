@@ -1,7 +1,13 @@
 import SignOutButton from "@/components/admin/SignOutButton";
+import {
+  AdminBottomTabBar,
+  AdminHeaderNav,
+} from "@/components/admin/AdminTabBar";
 
-// Single-page admin shell — top header strip + main content. The sidebar
-// was removed once the workspace collapsed to a single Orders page.
+// Admin shell — top header strip + main content + mobile bottom tab bar.
+// Three top-level sections: KPI dashboard (/admin), Orders (/admin/orders),
+// Specs / Business activities (/admin/specs). Desktop renders nav links
+// inline in the header; mobile gets a fixed bottom tab bar.
 export default function AdminWorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -20,14 +26,18 @@ export default function AdminWorkspaceLayout({
               </p>
             </div>
           </div>
+          <AdminHeaderNav />
           <SignOutButton />
         </div>
       </header>
       <main>
-        <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-10">
+        {/* Bottom padding on mobile so the fixed tab bar doesn't cover
+            content. ~64px tab bar + safe-area inset on iOS. */}
+        <div className="mx-auto w-full max-w-[1600px] px-5 pb-24 pt-5 sm:px-8 sm:pb-10 sm:pt-8">
           {children}
         </div>
       </main>
+      <AdminBottomTabBar />
     </div>
   );
 }
