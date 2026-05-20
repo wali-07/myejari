@@ -40,8 +40,8 @@ function whatsappHref(mobile: string, company: string) {
   const digits = mobile.replace(/\D/g, "");
   const text =
     `Hello - hope all is well.\n\n` +
-    `We can see that your Ejari for ${company} is up for renewal, and ` +
-    `wanted to check if you would like to issue a new Ejari?\n\n` +
+    `We would like to inform you that your Ejari for ${company} is up for renewal, and ` +
+    `we wanted to check if you would like to issue a new Ejari?\n\n` +
     `Looking forward to your update`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
