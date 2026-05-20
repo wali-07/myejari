@@ -74,13 +74,21 @@ export async function POST(request: Request) {
   const stored = await putUpload(key, buffer, file.type || "application/octet-stream");
 
   // Extraction strategy:
-  //   PDF  → pdf2json first (fast/free, works on text-layer PDFs).
-  //          Fall back to Vision if it returned nothing.
+  //   PDF  → pdf2json first (fast/free, gets company name from text-layer
+  //          PDFs). THEN Vision regardless, for activity + activity code
+  //          (pdf2json doesn't try to parse those). Vision also fills in
+  //          the company name if pdf2json found nothing (image-only PDF).
   //   IMG  → Vision directly. pdf2json doesn't speak images.
   //
-  // Both paths log errors and return an empty companyName instead of
-  // failing — the admin can always type the name manually.
-  let extraction = { companyName: "", rawText: "", highConfidence: false };
+  // Cost: ~$0.005 per upload regardless of input type. Negligible.
+  // Resilience: every code path returns empty fields instead of failing.
+  let extraction: {
+    companyName: string;
+    rawText: string;
+    highConfidence: boolean;
+    activity?: string;
+    activityCode?: string;
+  } = { companyName: "", rawText: "", highConfidence: false };
   const mimeType = file.type || "application/octet-stream";
 
   if (isPdf) {
@@ -89,14 +97,21 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error("[upload-tl] pdf2json extraction failed:", err);
     }
-    // Image-only PDF (no text layer) → Vision fallback.
-    if (!extraction.companyName) {
-      const vision = await extractTradeLicenseVision(
-        buffer,
-        "application/pdf"
-      );
-      if (vision.companyName) extraction = vision;
-    }
+    // Always run Vision on PDFs to get activity/activityCode. Also
+    // backfills companyName if pdf2json came up empty.
+    const vision = await extractTradeLicenseVision(
+      buffer,
+      "application/pdf"
+    );
+    extraction = {
+      // Prefer pdf2json's company name (regex-tuned for DET layout) when
+      // both agree it's present; fall back to Vision's.
+      companyName: extraction.companyName || vision.companyName,
+      rawText: extraction.rawText || vision.rawText,
+      highConfidence: extraction.highConfidence || vision.highConfidence,
+      activity: vision.activity, // Vision-only
+      activityCode: vision.activityCode, // Vision-only
+    };
   } else if (isImage && isVisionCompatible(mimeType)) {
     extraction = await extractTradeLicenseVision(buffer, mimeType);
   }
@@ -106,5 +121,7 @@ export async function POST(request: Request) {
     storedPath: stored.ref,
     companyName: extraction.companyName,
     highConfidence: extraction.highConfidence,
+    activity: extraction.activity,
+    activityCode: extraction.activityCode,
   });
 }

@@ -18,8 +18,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Order, PaymentStatus } from "@/lib/admin/orders";
-import { calculateGatewayFees, netRevenueOf } from "@/lib/admin/orders";
+import type { OfficeType, Order, PaymentStatus } from "@/lib/admin/orders";
+import {
+  calculateGatewayFees,
+  netRevenueOf,
+  OFFICE_TYPES,
+} from "@/lib/admin/orders";
 import {
   deleteOrder,
   markOrderPaid,
@@ -42,6 +46,7 @@ interface Props {
 
 type PaymentMethodChoice = "Bank Transfer" | "Card";
 type ValidityChoice = "1 year" | "1 month";
+type OfficeTypeChoice = OfficeType | "";
 
 interface EditForm {
   company: string;
@@ -54,6 +59,9 @@ interface EditForm {
   wholesalePrice: string;
   wholesaler: string;
   paymentStatus: PaymentStatus;
+  activity: string;
+  activityCode: string;
+  officeType: OfficeTypeChoice;
 }
 
 // In prod an uploaded ref is already an absolute Vercel Blob URL. In dev
@@ -77,6 +85,9 @@ function formFromOrder(order: Order): EditForm {
     wholesalePrice: String(order.wholesalePrice ?? ""),
     wholesaler: order.wholesaler ?? "",
     paymentStatus: order.paymentStatus === "paid" ? "paid" : "unpaid",
+    activity: order.activity ?? "",
+    activityCode: order.activityCode ?? "",
+    officeType: order.officeType ?? "",
   };
 }
 
@@ -160,6 +171,9 @@ export default function OrderDetailsModal({
         wholesalePrice,
         wholesaler: form.wholesaler,
         paymentStatus: form.paymentStatus,
+        activity: form.activity || undefined,
+        activityCode: form.activityCode || undefined,
+        officeType: form.officeType || undefined,
       });
       if (res.ok) {
         // The server action revalidated and pushed the fresh tree as part
@@ -360,6 +374,32 @@ export default function OrderDetailsModal({
                 </datalist>
               </Field>
 
+              <Field label="Activity (from TL)">
+                <input
+                  value={form.activity}
+                  onChange={(e) => update("activity", e.target.value)}
+                  placeholder="e.g. Management Consultancy"
+                  className={inputCls}
+                />
+              </Field>
+
+              <Field label="Office type sold">
+                <select
+                  value={form.officeType}
+                  onChange={(e) =>
+                    update("officeType", e.target.value as OfficeTypeChoice)
+                  }
+                  className={`${inputCls} appearance-none bg-white pr-8`}
+                >
+                  <option value="">— Not set —</option>
+                  {OFFICE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Customer paid" required>
                   <CurrencyInput
@@ -479,6 +519,18 @@ export default function OrderDetailsModal({
                   }
                 />
                 <InfoRow label="Wholesaler" value={order.wholesaler || "—"} />
+                <InfoRow
+                  label="Activity"
+                  value={
+                    order.activityCode && order.activity
+                      ? `${order.activity} (${order.activityCode})`
+                      : order.activity || "—"
+                  }
+                />
+                <InfoRow
+                  label="Office type sold"
+                  value={order.officeType || "—"}
+                />
               </Section>
 
               <p className="mb-1.5 mt-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray">

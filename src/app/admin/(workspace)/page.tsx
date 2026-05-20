@@ -8,6 +8,7 @@ import ExportAllButton from "@/components/admin/ExportAllButton";
 import RenewalsBanner from "@/components/admin/RenewalsBanner";
 import PaymentBreakdown from "@/components/admin/PaymentBreakdown";
 import WholesalerList from "@/components/admin/WholesalerList";
+import BackfillActivitiesButton from "@/components/admin/BackfillActivitiesButton";
 import {
   computeMetrics,
   countOrdersByStatus,
@@ -220,6 +221,14 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
           </div>
         </section>
       )}
+
+      {/* Maintenance / one-time tools */}
+      <section className="space-y-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray">
+          Maintenance
+        </h2>
+        <BackfillActivitiesButton />
+      </section>
     </div>
   );
 }

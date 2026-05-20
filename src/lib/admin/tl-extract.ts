@@ -146,6 +146,16 @@ export interface TradeLicenseExtraction {
   rawText: string;
   /** True when one of the labelled patterns hit; lets the UI signal confidence. */
   highConfidence: boolean;
+  /**
+   * Business activity (or activities, comma-separated) printed on the
+   * trade license. Vision-only — pdf2json doesn't try to parse this.
+   */
+  activity?: string;
+  /**
+   * Activity code(s) from the trade license, comma-separated if multiple.
+   * Vision-only.
+   */
+  activityCode?: string;
 }
 
 export async function extractTradeLicense(
@@ -177,16 +187,28 @@ export async function extractTradeLicense(
 
 // ─── Vision path ─────────────────────────────────────────────────────
 //
-// Single-shot Claude Haiku call. The system prompt is intentionally tight
-// — return ONLY the trade name or the literal string "UNKNOWN" — so we
-// don't need few-shot examples and don't need to parse around prose.
+// Single-shot Claude Haiku call. Returns structured JSON so we can pull
+// company name, activity, and activity code in one round-trip. JSON
+// output is more brittle than a single string but the savings on round-
+// trips and the structured-output reliability of Haiku 4.5 make it worth
+// it. Defensive parsing handles the occasional fence/preamble.
 
 const VISION_MODEL = "claude-haiku-4-5";
-const VISION_SYSTEM =
-  "You extract the English trade name (company name) from UAE trade " +
-  "license documents. Return ONLY the trade name exactly as printed, " +
-  "with no quotes, no labels, no commentary. If you cannot find a clear " +
-  "English trade name, return only the word: UNKNOWN";
+const VISION_SYSTEM = `
+You extract structured data from UAE trade license documents.
+
+Return ONLY a valid JSON object with EXACTLY these three fields. No
+markdown fences, no commentary, no extra fields:
+
+{
+  "companyName": "<English trade name as printed, no quotes, or UNKNOWN>",
+  "activity": "<primary activity, or comma-separated list of all activities printed on the license, or UNKNOWN>",
+  "activityCode": "<activity code(s) printed alongside the activity, comma-separated if multiple, or UNKNOWN>"
+}
+
+If any field is not clearly present on the license, use the literal
+string "UNKNOWN" for that field. Do NOT guess or invent values.
+`.trim();
 
 const VISION_IMAGE_MIME = new Set<
   "image/jpeg" | "image/png" | "image/gif" | "image/webp"
@@ -208,10 +230,46 @@ export function isVisionCompatible(mimeType: string): boolean {
 }
 
 /**
+ * Defensive JSON extractor — pulls the first `{...}` block from a string.
+ * Handles cases where the model wrapped the JSON in markdown fences or
+ * preamble, which Haiku 4.5 occasionally still does despite instructions.
+ */
+function parseVisionJson(text: string): {
+  companyName?: string;
+  activity?: string;
+  activityCode?: string;
+} | null {
+  if (!text) return null;
+  // Try direct parse first (clean output)
+  try {
+    return JSON.parse(text);
+  } catch {
+    /* fall through */
+  }
+  // Strip fences / preamble — look for first { and last }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < 0 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function normaliseField(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const cleaned = raw.trim().replace(/^["']|["']$/g, "");
+  if (!cleaned || /^unknown\.?$/i.test(cleaned)) return undefined;
+  return cleaned;
+}
+
+/**
  * Run the uploaded file through Claude Haiku Vision and return the
- * extracted company name. Resilient by design — every error path returns
- * an empty-name extraction so the upload itself never fails because of
- * an OCR hiccup; the admin can always type the name manually.
+ * extracted company name, activity, and activity code. Resilient by
+ * design — every error path returns an empty-name extraction so the
+ * upload itself never fails because of an OCR hiccup; the admin can
+ * always type the values manually.
  */
 export async function extractTradeLicenseVision(
   buffer: Buffer,
@@ -248,7 +306,7 @@ export async function extractTradeLicenseVision(
     const client = new Anthropic();
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 200,
+      max_tokens: 800, // structured output needs more headroom than name-only
       system: VISION_SYSTEM,
       messages: [
         {
@@ -257,7 +315,10 @@ export async function extractTradeLicenseVision(
             block,
             {
               type: "text",
-              text: "Extract the English trade name from this UAE trade license.",
+              text:
+                "Extract the company name, activity, and activity code " +
+                "from this UAE trade license. Return only the JSON object " +
+                "described in the system prompt.",
             },
           ],
         },
@@ -268,13 +329,22 @@ export async function extractTradeLicenseVision(
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("")
-      .trim()
-      .replace(/^["']|["']$/g, "");
+      .trim();
 
-    if (!text || /^unknown\.?$/i.test(text)) {
-      return { ...empty, rawText: text };
-    }
-    return { companyName: text, rawText: text, highConfidence: true };
+    const parsed = parseVisionJson(text);
+    if (!parsed) return { ...empty, rawText: text };
+
+    const companyName = normaliseField(parsed.companyName) ?? "";
+    const activity = normaliseField(parsed.activity);
+    const activityCode = normaliseField(parsed.activityCode);
+
+    return {
+      companyName,
+      rawText: text,
+      highConfidence: companyName.length > 0,
+      activity,
+      activityCode,
+    };
   } catch (err) {
     console.error("[tl-extract] vision call failed:", err);
     return empty;

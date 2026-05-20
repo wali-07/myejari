@@ -12,12 +12,17 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createOrder } from "@/app/admin/(workspace)/actions";
-import { calculateGatewayFees } from "@/lib/admin/orders";
+import {
+  calculateGatewayFees,
+  OFFICE_TYPES,
+  type OfficeType,
+} from "@/lib/admin/orders";
 import { formatAED } from "@/lib/admin/format";
 import WholesalerSelect from "@/components/admin/WholesalerSelect";
 
 type PaymentMethodChoice = "Bank Transfer" | "Card";
 type ValidityChoice = "1 year" | "1 month";
+type OfficeTypeChoice = OfficeType | "";
 
 interface FormState {
   contactMobile: string;
@@ -28,6 +33,12 @@ interface FormState {
   myEjariPrice: string;
   wholesalePrice: string;
   wholesaler: string;
+  /** Business activity from the TL (Vision-extracted, editable). */
+  activity: string;
+  /** Activity code from the TL, if Vision found one. */
+  activityCode: string;
+  /** Office type we sold this customer ("" = not yet selected). */
+  officeType: OfficeTypeChoice;
 }
 
 const DEFAULTS: FormState = {
@@ -39,6 +50,9 @@ const DEFAULTS: FormState = {
   myEjariPrice: "",
   wholesalePrice: "",
   wholesaler: "",
+  activity: "",
+  activityCode: "",
+  officeType: "",
 };
 
 interface UploadedTL {
@@ -46,6 +60,8 @@ interface UploadedTL {
   storedPath: string;
   companyName: string;
   highConfidence: boolean;
+  activity?: string;
+  activityCode?: string;
 }
 
 interface Props {
@@ -108,6 +124,10 @@ export default function CreateOrderModal({ wholesalers }: Props) {
       setUploaded(data);
       setCompanyName(data.companyName);
       setEditingCompany(!data.companyName);
+      // Auto-fill activity + activity code from Vision extraction if
+      // they came through — the admin can edit either before submit.
+      if (data.activity) update("activity", data.activity);
+      if (data.activityCode) update("activityCode", data.activityCode);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -153,6 +173,9 @@ export default function CreateOrderModal({ wholesalers }: Props) {
         wholesalePrice,
         wholesaler: form.wholesaler,
         tradeLicensePath: uploaded?.storedPath,
+        activity: form.activity || undefined,
+        activityCode: form.activityCode || undefined,
+        officeType: form.officeType || undefined,
       });
       if (res.ok) {
         // createOrder revalidated /admin and pushed the fresh tree back as
@@ -392,6 +415,38 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                       onChange={(v) => update("wholesaler", v)}
                       options={wholesalers}
                     />
+                  </Field>
+
+                  <Field
+                    label={
+                      form.activity
+                        ? "Activity (from TL)"
+                        : "Activity"
+                    }
+                  >
+                    <input
+                      value={form.activity}
+                      onChange={(e) => update("activity", e.target.value)}
+                      placeholder="e.g. Management Consultancy"
+                      className={inputCls}
+                    />
+                  </Field>
+
+                  <Field label="Office type sold">
+                    <select
+                      value={form.officeType}
+                      onChange={(e) =>
+                        update("officeType", e.target.value as OfficeTypeChoice)
+                      }
+                      className={`${inputCls} appearance-none bg-white pr-8`}
+                    >
+                      <option value="">— Select —</option>
+                      {OFFICE_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
 
                   <div className="grid grid-cols-2 gap-3">

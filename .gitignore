@@ -47,3 +47,6 @@ data/admin-uploads/
 .gstack/
 # GSC exports — never commit, may contain sensitive search data
 data/gsc/
+
+# Google Ads exports — never commit, may contain sensitive performance data
+data/google-ads/

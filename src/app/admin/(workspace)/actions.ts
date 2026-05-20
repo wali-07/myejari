@@ -4,6 +4,8 @@ import { refresh, revalidatePath } from "next/cache";
 import {
   calculateGatewayFees,
   nextInvoiceNumber,
+  OFFICE_TYPES,
+  type OfficeType,
   type Order,
   type PaymentMethod,
   type PaymentStatus,
@@ -39,6 +41,12 @@ interface CreateOrderInput {
   wholesalePrice: number;
   wholesaler: string;
   tradeLicensePath?: string;
+  /** Business activity from the trade license (Vision-extracted or manual). */
+  activity?: string;
+  /** Activity code from the trade license, if present. */
+  activityCode?: string;
+  /** Type of office space sold (Business Center / Separate Office / Shop / ...). */
+  officeType?: OfficeType;
 }
 
 function todayIso(): string {
@@ -84,6 +92,11 @@ export async function createOrder(
       input.myEjariPrice > 0 ? margin / input.myEjariPrice : 0;
     const finalProfit = margin - gatewayFees;
 
+    const officeType =
+      input.officeType && OFFICE_TYPES.includes(input.officeType)
+        ? input.officeType
+        : undefined;
+
     const order: Order = {
       invoice,
       date: todayIso(),
@@ -104,6 +117,9 @@ export async function createOrder(
       validity: input.validity,
       inspectionIncluded: input.inspectionIncluded,
       tradeLicensePath: input.tradeLicensePath || undefined,
+      activity: input.activity?.trim() || undefined,
+      activityCode: input.activityCode?.trim() || undefined,
+      officeType,
     };
 
     await writeOrders([...orders, order]);
@@ -130,6 +146,9 @@ interface UpdateOrderInput {
   wholesalePrice: number;
   wholesaler: string;
   paymentStatus: PaymentStatus;
+  activity?: string;
+  activityCode?: string;
+  officeType?: OfficeType;
 }
 
 /**
@@ -165,6 +184,10 @@ export async function updateOrder(
         input.paymentMethod
       );
       const finalProfit = margin - gatewayFees;
+      const officeType =
+        input.officeType && OFFICE_TYPES.includes(input.officeType)
+          ? input.officeType
+          : undefined;
       return {
         ...current,
         company: input.company.trim(),
@@ -182,6 +205,9 @@ export async function updateOrder(
         serviceLocation: input.serviceLocation.trim() || undefined,
         validity: input.validity,
         inspectionIncluded: input.inspectionIncluded,
+        activity: input.activity?.trim() || undefined,
+        activityCode: input.activityCode?.trim() || undefined,
+        officeType,
       };
     });
     if (result.ok) refreshAdmin();

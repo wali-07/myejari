@@ -5,6 +5,28 @@ export type PaymentMethod = "Bank Transfer" | "Card" | "Other";
 export type RefundStatus = "none" | "full" | "partial";
 export type PaymentStatus = "paid" | "unpaid";
 
+/**
+ * Type of office space the Ejari was issued against. Captured at order
+ * creation so we can, over time, build a proprietary activity → office-type
+ * mapping from real placements (no public source maps this comprehensively).
+ */
+export type OfficeType =
+  | "Business Center"
+  | "Coworking"
+  | "Separate Office"
+  | "Shop Ejari"
+  | "Warehouse"
+  | "Other";
+
+export const OFFICE_TYPES: OfficeType[] = [
+  "Business Center",
+  "Coworking",
+  "Separate Office",
+  "Shop Ejari",
+  "Warehouse",
+  "Other",
+];
+
 export interface Order {
   invoice: string;
   /** ISO date `YYYY-MM-DD`. */
@@ -42,6 +64,16 @@ export interface Order {
   tradeLicensePath?: string;
   /** Repo-relative path to the wholesaler-issued invoice/receipt for this order. */
   wholesalerInvoicePath?: string;
+  /**
+   * Business activity (or activities, comma-separated) extracted from the
+   * trade license — e.g. "Management Consultancy, IT Services". Used to
+   * build the proprietary activity → office-type mapping over time.
+   */
+  activity?: string;
+  /** Activity code(s) from the trade license, if present. */
+  activityCode?: string;
+  /** What type of office space we sold against this Ejari. */
+  officeType?: OfficeType;
 }
 
 /** Wholesaler usage rollup — used to populate the dropdown in Create Order. */
