@@ -219,18 +219,21 @@ export const posts: BlogPost[] = [
   {
     slug: "virtual-office-ejari-dubai",
     title:
-      "Virtual Office Ejari Requirements in Dubai for Trade License Renewal",
+      "Virtual Office Ejari in Dubai: Same-Day Issuance on WhatsApp",
     description:
-      "What you actually need for a Virtual Office Ejari in Dubai — the documents, the rules around RERA-approved business centers, common reasons applications get rejected, and how MyEjari handles every step on WhatsApp.",
+      "Get a Virtual Office Ejari for your Dubai trade license — RERA-approved business centers, same-day issuance, handled end-to-end on WhatsApp.",
     date: "2025-09-15",
-    dateModified: "2026-04-22",
+    dateModified: "2026-05-20",
     readingTime: "6 min read",
     category: "Compliance",
     keywords: [
-      "virtual office ejari requirements",
+      "virtual office ejari dubai",
+      "virtual office ejari",
+      "office with ejari",
+      "ejari office dubai",
+      "virtual ejari dubai",
       "ejari for trade license",
       "RERA approved business center",
-      "virtual office ejari dubai",
       "trade license renewal ejari",
     ],
     content: [
@@ -688,14 +691,19 @@ export const posts: BlogPost[] = [
   {
     slug: "trade-license-renewal-dubai-virtual-office-ejari",
     title:
-      "Trade License Renewal in Dubai: How a Virtual Office Ejari Saves You Time",
+      "Dubai Trade License Renewal: Virtual Office Ejari, Same Day",
     description:
-      "Renew your Dubai trade license without leasing a private office. How a Virtual Office Ejari satisfies the DET, what the documentation looks like, and how to renew on WhatsApp with MyEjari.",
+      "Renew your Dubai trade license with a Virtual Office Ejari from a RERA-approved business center. Same-day Ejari, the whole process handled on WhatsApp.",
     date: "2025-12-09",
-    dateModified: "2026-05-02",
+    dateModified: "2026-05-20",
     readingTime: "6 min read",
     category: "Trade License",
     keywords: [
+      "ejari for trade license renewal",
+      "ejari for license renewal",
+      "virtual office trade license",
+      "virtual office trade license dubai",
+      "trade license renewal dubai",
       "dubai trade license renewal",
       "virtual office ejari renewal",
       "trade license ejari",
