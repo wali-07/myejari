@@ -45,3 +45,5 @@ next-env.d.ts
 .claude/
 data/admin-uploads/
 .gstack/
+# GSC exports — never commit, may contain sensitive search data
+data/gsc/
