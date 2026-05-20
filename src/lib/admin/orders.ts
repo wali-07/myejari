@@ -181,6 +181,85 @@ export function netRevenueOf(order: Order): number {
 }
 
 /**
+ * Add one calendar year to an ISO `YYYY-MM-DD` date. Feb 29 clamps to
+ * Feb 28 of the next year (i.e. Ejari issued on a leap day renews on
+ * the last day of February, not March 1st).
+ */
+export function addOneYear(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const next = new Date(y + 1, (m ?? 1) - 1, d ?? 1);
+  // Feb 29 → JS rolls over into March 1; clamp back to Feb 28.
+  if (next.getMonth() !== (m ?? 1) - 1) next.setDate(0);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(next.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * ISO week containing `today`: Monday → Sunday, returned as inclusive
+ * ISO date strings. Defaults `today` to now so callers (and tests) can
+ * pin behaviour.
+ */
+export function getIsoWeekRange(
+  today: Date = new Date()
+): { from: string; to: string } {
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  // JS: Sun=0..Sat=6 → ISO: Mon=1..Sun=7.
+  const isoDow = d.getDay() === 0 ? 7 : d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (isoDow - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (x: Date) =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(
+      x.getDate()
+    ).padStart(2, "0")}`;
+  return { from: fmt(monday), to: fmt(sunday) };
+}
+
+/** An order surfaced for renewal, with its computed renewal date. */
+export interface RenewalEntry {
+  order: Order;
+  /** ISO `YYYY-MM-DD`, exactly one year after the order date. */
+  renewalDate: string;
+}
+
+/**
+ * Find orders due for renewal inside an ISO week. Renewal date is
+ * `order.date + 1 year`, regardless of the `validity` field — Ejari
+ * is always annual in practice.
+ *
+ * - Paid orders only (no point chasing unpaid leads).
+ * - De-duped by company: if a company has multiple orders, only the
+ *   most recent one is considered. This naturally hides companies that
+ *   have already renewed (their latest order's renewal is next year,
+ *   not this week).
+ * - Sorted by renewal date ascending so Monday's renewals come first.
+ */
+export function renewalsForWeek(
+  orders: Order[],
+  week: { from: string; to: string }
+): RenewalEntry[] {
+  const latestPerCompany = new Map<string, Order>();
+  for (const o of orders) {
+    if (o.paymentStatus !== "paid") continue;
+    const key = o.company.trim().toLowerCase();
+    if (!key) continue;
+    const cur = latestPerCompany.get(key);
+    if (!cur || o.date > cur.date) latestPerCompany.set(key, o);
+  }
+  const entries: RenewalEntry[] = [];
+  for (const o of latestPerCompany.values()) {
+    const renewalDate = addOneYear(o.date);
+    if (renewalDate >= week.from && renewalDate <= week.to) {
+      entries.push({ order: o, renewalDate });
+    }
+  }
+  return entries.sort((a, b) => a.renewalDate.localeCompare(b.renewalDate));
+}
+
+/**
  * Validate + normalise a custom (`from`, `to`) date pair for the date filter.
  * Returns `null` for malformed input so the page can fall back to a preset.
  */

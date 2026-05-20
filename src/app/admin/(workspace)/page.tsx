@@ -5,11 +5,14 @@ import OrdersFilters from "@/components/admin/OrdersFilters";
 import OrdersTable from "@/components/admin/OrdersTable";
 import CreateOrderModal from "@/components/admin/CreateOrderModal";
 import ExportAllButton from "@/components/admin/ExportAllButton";
+import RenewalsBanner from "@/components/admin/RenewalsBanner";
 import {
   computeMetrics,
   filterOrdersByRange,
+  getIsoWeekRange,
   paidOnly,
   rankedWholesalers,
+  renewalsForWeek,
   resolveCustomRange,
   resolveRange,
   type DateRangeKey,
@@ -75,11 +78,20 @@ export default async function AdminOrdersPage({ searchParams }: Props) {
   // window) — most-used → least-used. Used by the Create Order modal.
   const wholesalers = rankedWholesalers(all);
 
+  // Renewals due this ISO week (Mon–Sun) — computed across ALL orders, not
+  // the filtered window, since the user shouldn't have to clear filters to
+  // see who to message.
+  const week = getIsoWeekRange();
+  const renewals = renewalsForWeek(all, week);
+
   // Preserve search across date filter changes.
   const preservedForDate = { q: query || undefined };
 
   return (
     <div className="space-y-7">
+      {/* Renewals due this week — silent when empty */}
+      <RenewalsBanner renewals={renewals} week={week} />
+
       {/* Top action row — date filter on the left, Export + Create on the right */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <DateRangePicker
