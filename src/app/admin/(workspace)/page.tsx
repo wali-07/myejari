@@ -8,6 +8,7 @@ import RenewalsBanner from "@/components/admin/RenewalsBanner";
 import PaymentBreakdown from "@/components/admin/PaymentBreakdown";
 import WholesalerList from "@/components/admin/WholesalerList";
 import BackfillActivitiesButton from "@/components/admin/BackfillActivitiesButton";
+import SecureUploadsButton from "@/components/admin/SecureUploadsButton";
 import {
   computeMetrics,
   dateRangePresets,
@@ -176,6 +177,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray">
           Maintenance
         </h2>
+        <SecureUploadsButton />
         <BackfillActivitiesButton />
       </section>
     </div>

@@ -5,7 +5,7 @@ import { PassThrough, Readable } from "node:stream";
 import { readOrders } from "@/lib/admin/orders-store";
 import { InvoicePdf } from "@/lib/admin/invoice-pdf";
 import { sortOrdersByDate } from "@/lib/admin/orders";
-import { fetchUploadBytes, isBlobRef } from "@/lib/admin/storage";
+import { fetchUploadBytes } from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
 
@@ -32,10 +32,10 @@ function timestamp(): string {
 }
 
 function extFromRef(ref: string): string {
-  if (isBlobRef(ref)) {
+  // Only a full URL needs URL parsing; pathnames and fs paths use extname.
+  if (/^https?:\/\//.test(ref)) {
     try {
-      const url = new URL(ref);
-      return path.extname(url.pathname) || "";
+      return path.extname(new URL(ref).pathname) || "";
     } catch {
       return "";
     }

@@ -2,20 +2,19 @@ import "server-only";
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { put, get } from "@vercel/blob";
 import type { ActivityNote } from "./activities";
-import { STORAGE_BACKEND } from "./storage";
+import { STORAGE_BACKEND, createVersionedBlobDoc } from "./storage";
 
 // Storage for ADMIN activity notes (one row per business activity, capturing
 // operational knowledge — "for this activity, virtual office at center X
-// works", etc.). Lives separately from orders.json because notes are an
-// admin-only annotation surface, not order data.
+// works", etc.). Lives separately from the orders document because notes
+// are an admin-only annotation surface, not order data.
 //
 // Same backend strategy as orders: Vercel Blob in prod, local fs in dev.
-// Private blob so notes aren't world-readable. Simpler than orders because
-// there's no legacy data to migrate.
+// On Blob it uses the versioned-document store (see `createVersionedBlobDoc`
+// in storage.ts) so a saved note is strongly consistent — it can never be
+// served stale from a CDN edge after a write.
 
-const NOTES_BLOB_KEY = "admin/activity-notes.json";
 const NOTES_FS_PATH = path.join(
   process.cwd(),
   "src",
@@ -23,23 +22,12 @@ const NOTES_FS_PATH = path.join(
   "activity-notes.json"
 );
 
-async function readFromBlob(): Promise<ActivityNote[]> {
-  try {
-    const res = await get(NOTES_BLOB_KEY, {
-      access: "private",
-      useCache: false,
-    });
-    if (res && res.statusCode === 200) {
-      const parsed = (await new Response(
-        res.stream as ReadableStream<Uint8Array>
-      ).json()) as unknown;
-      return Array.isArray(parsed) ? (parsed as ActivityNote[]) : [];
-    }
-  } catch {
-    /* fall through */
-  }
-  return [];
-}
+const notesDoc = createVersionedBlobDoc({
+  logPrefix: "admin/activity-notes-log/",
+  legacyKey: "admin/activity-notes.json",
+  keepVersions: 10,
+  fallback: () => [],
+});
 
 async function readFromFs(): Promise<ActivityNote[]> {
   try {
@@ -51,34 +39,6 @@ async function readFromFs(): Promise<ActivityNote[]> {
   }
 }
 
-export async function readActivityNotes(): Promise<ActivityNote[]> {
-  if (STORAGE_BACKEND === "blob") return readFromBlob();
-  return readFromFs();
-}
-
-async function writeToBlob(notes: ActivityNote[]): Promise<void> {
-  const body = JSON.stringify(notes, null, 2);
-  try {
-    await put(NOTES_BLOB_KEY, body, {
-      access: "private",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      allowOverwrite: true,
-      cacheControlMaxAge: 60,
-    });
-  } catch {
-    // Private blobs may be unavailable on the store — fall back to public
-    // so the admin tool never silently fails to persist.
-    await put(NOTES_BLOB_KEY, body, {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      allowOverwrite: true,
-      cacheControlMaxAge: 60,
-    });
-  }
-}
-
 async function writeToFs(notes: ActivityNote[]): Promise<void> {
   await fs.mkdir(path.dirname(NOTES_FS_PATH), { recursive: true });
   const tmp = NOTES_FS_PATH + ".tmp";
@@ -86,11 +46,19 @@ async function writeToFs(notes: ActivityNote[]): Promise<void> {
   await fs.rename(tmp, NOTES_FS_PATH);
 }
 
+export async function readActivityNotes(): Promise<ActivityNote[]> {
+  if (STORAGE_BACKEND === "blob") {
+    const raw = await notesDoc.read();
+    return Array.isArray(raw) ? (raw as ActivityNote[]) : [];
+  }
+  return readFromFs();
+}
+
 export async function writeActivityNotes(
   notes: ActivityNote[]
 ): Promise<void> {
   if (STORAGE_BACKEND === "blob") {
-    await writeToBlob(notes);
+    await notesDoc.write(notes);
     return;
   }
   if (process.env.NODE_ENV === "production") {

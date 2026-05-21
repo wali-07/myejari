@@ -2,8 +2,9 @@ import "server-only";
 
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { put, del, get } from "@vercel/blob";
+import { put, del, get, list } from "@vercel/blob";
 // Bundled CRM seed — guaranteed to ship with the function on Vercel
 // because it's a regular import (Next's bundler picks it up). Used as
 // the first-run seed for the Blob store and as a read-only fallback
@@ -17,8 +18,8 @@ import { calculateGatewayFees, type Order } from "@/lib/admin/orders";
  * (Vercel sets it automatically when a Blob store is connected).
  *
  * Two responsibilities here:
- *   1. The orders JSON document — loaded fresh on every request, written
- *      back atomically when an order is created/updated/deleted.
+ *   1. Mutable JSON documents (the orders CRM, the activity notes) —
+ *      see `createVersionedBlobDoc` below.
  *   2. Uploaded files (Trade Licenses, wholesaler invoices). The order
  *      record stores either a relative fs path (dev) or a Blob URL (prod).
  */
@@ -28,60 +29,194 @@ export const STORAGE_BACKEND: "fs" | "blob" = process.env
   ? "blob"
   : "fs";
 
-const ORDERS_BLOB_KEY = "admin/orders.json";
-const ORDERS_FS_PATH = path.join(
-  process.cwd(),
-  "src",
-  "data",
-  "orders.json"
-);
+const ORDERS_FS_PATH = path.join(process.cwd(), "src", "data", "orders.json");
 const UPLOADS_FS_DIR = path.join(process.cwd(), "data", "admin-uploads");
 
-// ─── Orders JSON ───────────────────────────────────────────────────────
+// ─── Versioned JSON documents ──────────────────────────────────────────
 //
-// orders.json is the mutable source of truth. Vercel Blob serves a public
-// blob through its edge CDN, and the default cache lifetime is ONE MONTH
-// (`cacheControlMaxAge`). Overwriting a blob does NOT purge that CDN, and
-// `fetch(..., { cache: "no-store" })` only bypasses Next's own fetch cache
-// — never Blob's CDN. That is why a freshly created order stayed invisible
-// for up to a month and ad-hoc invoice uploads 404'd (the upload route read
-// a stale list that didn't contain the just-created order).
+// A mutable JSON document is stored on Vercel Blob as an APPEND-ONLY LOG
+// of immutable version files. Every write creates a brand-new, uniquely
+// named blob — it NEVER overwrites an existing one.
 //
-// Defences, strongest first:
-//   1. orders.json is written as a PRIVATE blob and read straight from
-//      origin with `get(..., { useCache: false })` — strongly consistent
-//      across every instance (writes are visible immediately) and no
-//      longer world-readable at a guessable public URL.
-//   2. `cacheControlMaxAge: 60` — the SDK minimum — caps staleness on any
-//      remaining public-CDN fallback path at ~60s instead of ~30 days.
-//   3. A per-process write-through copy: the instance that performed a
-//      write serves its own copy for a short window — resilience if a
-//      strongly-consistent read transiently fails (no error page).
+// Why this design exists: overwriting a fixed-name blob does NOT purge
+// the Vercel Blob CDN, and `fetch(..., { cache: "no-store" })` only
+// bypasses Next's own fetch cache — never the CDN edge. With a single
+// overwritten document a freshly created/edited/deleted record could
+// therefore stay invisible for up to the cache lifetime. That is the
+// exact "I marked it paid, refreshed, and it came back" bug.
 //
-// Migration: a document written before this change is still PUBLIC. The
-// first read falls back to the public path, serves it, and re-writes it
-// as private (once) so every subsequent read is strongly consistent. If
-// private blobs are unavailable on the store, writes degrade to public
-// (the dashboard keeps working, just with the ≤60s window from #2).
+// With one immutable file per version the problem disappears:
+//   • a brand-new file's URL has never been cached by anything, and
+//   • an existing file's content never changes, so caching it is always
+//     correct.
+// Reads `list()` the log and fetch the newest version. `list()` reads
+// store metadata (strongly consistent), not the CDN. The rare sub-second
+// indexing lag after a write is covered, on the writing instance, by an
+// in-memory read-your-writes copy. Old versions are pruned on write,
+// keeping the most recent N — each of which doubles as a backup.
 
-/** SDK minimum for `cacheControlMaxAge` — can't be set lower than 1 minute. */
+/** cacheControlMaxAge for backup / migration-flag blobs (SDK minimum). */
 const ORDERS_CACHE_MAX_AGE_SECONDS = 60;
-/** Trust our own just-written copy a little longer than the CDN window. */
-const WRITE_TRUST_WINDOW_MS = 120_000;
 
-/** A small in-memory cache of the orders blob URL — saved per-process. */
-let cachedOrdersBlobUrl: string | null = null;
-/** Last orders array this process wrote, with when — read-after-write. */
-let lastWrittenOrders: unknown[] | null = null;
-let lastWriteAt = 0;
-/** Once-per-process flag so a legacy public doc is migrated to private once. */
-let migratedThisProcess = false;
-/** Per-process guard so the one-time Card-fee recalc is attempted once. */
-let cardFeeMigrationChecked = false;
-/** Bump the version suffix to re-run the recalc as a fresh migration. */
-const CARD_FEE_MIGRATION_FLAG =
-  "admin/migrations/recalc-card-fees-v1.json";
+interface VersionedBlobDoc {
+  /** Newest version of the document, strongly consistent. */
+  read(): Promise<unknown[]>;
+  /** Append a new immutable version of the document. */
+  write(value: unknown[]): Promise<void>;
+}
 
+/**
+ * Build a strongly-consistent JSON-array document backed by an append-only
+ * log of immutable Blob version files. See the section comment above for
+ * the rationale.
+ */
+export function createVersionedBlobDoc(opts: {
+  /** Folder the version files live under, e.g. "admin/orders-log/". */
+  logPrefix: string;
+  /** Pre-upgrade single-document key to migrate from on the first read. */
+  legacyKey: string;
+  /** How many recent versions to retain (each doubles as a backup). */
+  keepVersions: number;
+  /** Value to use when the store is genuinely empty (first run ever). */
+  fallback: () => unknown[];
+}): VersionedBlobDoc {
+  // Read-your-writes state, scoped to THIS serverless instance.
+  let lastValue: unknown[] | null = null;
+  let lastPathname: string | null = null;
+  let seq = 0;
+
+  /**
+   * A unique, chronologically-sortable pathname for a new version.
+   * `<zero-padded-ms>-<ordinal>-<uuid>.json` — lexical order equals write
+   * order, and the uuid guarantees uniqueness across instances.
+   */
+  function nextPathname(): string {
+    const stamp = String(Date.now()).padStart(15, "0");
+    const ordinal = String(seq++).padStart(6, "0");
+    return `${opts.logPrefix}${stamp}-${ordinal}-${randomUUID()}.json`;
+  }
+
+  /** Read the pre-upgrade single document, private blob or public blob. */
+  async function readLegacy(): Promise<unknown[] | null> {
+    try {
+      const res = await get(opts.legacyKey, {
+        access: "private",
+        useCache: false,
+      });
+      if (res && res.statusCode === 200) {
+        return (await new Response(
+          res.stream as ReadableStream<Uint8Array>
+        ).json()) as unknown[];
+      }
+    } catch {
+      // Not a private blob, or private reads unavailable — try public.
+    }
+    try {
+      const { blobs } = await list({ prefix: opts.legacyKey });
+      const existing = blobs.find((b) => b.pathname === opts.legacyKey);
+      if (existing) {
+        const res = await fetch(existing.url, { cache: "no-store" });
+        if (res.ok) return (await res.json()) as unknown[];
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  }
+
+  /** Delete versions beyond the retention window. Best-effort only. */
+  async function prune(): Promise<void> {
+    try {
+      const { blobs } = await list({ prefix: opts.logPrefix });
+      if (blobs.length <= opts.keepVersions) return;
+      const stale = blobs
+        .sort((a, b) => (a.pathname < b.pathname ? 1 : -1)) // newest first
+        .slice(opts.keepVersions) // everything past the keep window
+        .map((b) => b.url);
+      if (stale.length > 0) await del(stale);
+    } catch {
+      // Housekeeping only — a failure here is retried by the next write.
+    }
+  }
+
+  async function write(value: unknown[]): Promise<void> {
+    const pathname = nextPathname();
+    await put(pathname, JSON.stringify(value, null, 2), {
+      access: "public",
+      addRandomSuffix: false, // the pathname is already unique
+      allowOverwrite: false, // a unique pathname is never an overwrite
+      contentType: "application/json",
+    });
+    // This instance is authoritative until `list()` indexes the write.
+    lastValue = structuredClone(value);
+    lastPathname = pathname;
+    await prune();
+  }
+
+  async function read(): Promise<unknown[]> {
+    let versions: { pathname: string; url: string }[] = [];
+    try {
+      const { blobs } = await list({ prefix: opts.logPrefix });
+      versions = blobs;
+    } catch {
+      // Listing failed — fall back to the in-memory / legacy / seed paths.
+    }
+
+    if (versions.length > 0) {
+      versions.sort((a, b) => (a.pathname < b.pathname ? 1 : -1));
+      const newest = versions[0];
+
+      // A write from THIS instance that `list()` hasn't indexed yet is
+      // still the freshest truth — serve it.
+      if (lastValue && lastPathname && lastPathname > newest.pathname) {
+        return structuredClone(lastValue);
+      }
+      try {
+        // The version file is immutable, so its URL is never stale.
+        const res = await fetch(newest.url, { cache: "no-store" });
+        if (res.ok) return (await res.json()) as unknown[];
+      } catch {
+        // Fetch failed — fall back below.
+      }
+    }
+
+    // No readable version. Prefer our own in-memory copy …
+    if (lastValue) return structuredClone(lastValue);
+
+    // … then migrate the pre-upgrade single-document store, if any …
+    const legacy = await readLegacy();
+    if (legacy) {
+      try {
+        await write(legacy);
+      } catch {
+        // Migration is best-effort — the data is returned regardless.
+      }
+      return legacy;
+    }
+
+    // … otherwise this is a genuine first run. Seed the store.
+    const seed = opts.fallback();
+    try {
+      await write(seed);
+    } catch {
+      // Couldn't persist the seed — still return it so the app loads.
+    }
+    return seed;
+  }
+
+  return { read, write };
+}
+
+// ─── Orders JSON ───────────────────────────────────────────────────────
+
+const ordersDoc = createVersionedBlobDoc({
+  logPrefix: "admin/orders-log/",
+  legacyKey: "admin/orders.json",
+  keepVersions: 20,
+  fallback: () => structuredClone(bundledOrdersData) as unknown[],
+});
+
+/** Read fresh orders on every call — backend-agnostic. */
 export async function readOrdersJson(): Promise<unknown[]> {
   if (STORAGE_BACKEND === "blob") {
     const orders = await readOrdersJsonFromBlob();
@@ -98,6 +233,7 @@ export async function readOrdersJson(): Promise<unknown[]> {
   }
 }
 
+/** Persist the orders array through whichever backend is active. */
 export async function writeOrdersJson(orders: unknown[]): Promise<void> {
   if (STORAGE_BACKEND === "blob") {
     await writeOrdersJsonToBlob(orders);
@@ -114,162 +250,11 @@ export async function writeOrdersJson(orders: unknown[]): Promise<void> {
 }
 
 async function readOrdersJsonFromBlob(): Promise<unknown[]> {
-  // 1. Read-after-write: if THIS instance wrote within the trust window,
-  //    its in-memory copy IS the latest truth. Return it before touching
-  //    the blob at all. This is what guarantees "mark paid / create /
-  //    upload → refresh" reflects the change on the warm instance the
-  //    admin is using, regardless of blob read latency or migration state.
-  if (
-    lastWrittenOrders &&
-    Date.now() - lastWriteAt < WRITE_TRUST_WINDOW_MS
-  ) {
-    return lastWrittenOrders;
-  }
-
-  // 2. Strongly-consistent read straight from origin storage. `useCache:
-  //    false` is only honoured for PRIVATE blobs — which is why writes go
-  //    out as private. This reflects every write immediately, on every
-  //    serverless instance.
-  try {
-    const res = await get(ORDERS_BLOB_KEY, {
-      access: "private",
-      useCache: false,
-    });
-    if (res && res.statusCode === 200) {
-      const parsed = (await new Response(
-        res.stream as ReadableStream<Uint8Array>
-      ).json()) as unknown[];
-      lastWrittenOrders = parsed;
-      lastWriteAt = Date.now();
-      return parsed;
-    }
-    // res === null → no PRIVATE document. Either a genuine first run or a
-    // legacy PUBLIC document from before this change — fall through.
-  } catch {
-    // Private read unavailable/transient — fall through.
-  }
-
-  // 3. Legacy/public fallback: read the old public blob, then migrate it
-  //    to private once so every subsequent read is strongly consistent.
-  const legacy = await readPublicOrdersJson();
-  if (legacy) {
-    if (!migratedThisProcess) {
-      migratedThisProcess = true;
-      try {
-        await writeOrdersJsonToBlob(legacy);
-      } catch {
-        /* migration is best-effort — the data is still served below */
-      }
-    }
-    return legacy;
-  }
-
-  // 4. Couldn't read it anywhere. Prefer our last in-memory copy.
-  if (lastWrittenOrders) return lastWrittenOrders;
-
-  // 5. Genuine first run (or wholly unreadable) — seed it, but NEVER
-  //    overwrite an existing document.
-  return seedOrdersJson();
-}
-
-/** Read the legacy/public orders blob via list() + its public URL. */
-async function readPublicOrdersJson(): Promise<unknown[] | null> {
-  try {
-    if (!cachedOrdersBlobUrl) {
-      const { list } = await import("@vercel/blob");
-      const result = await list({ prefix: ORDERS_BLOB_KEY });
-      const existing = result.blobs.find(
-        (b) => b.pathname === ORDERS_BLOB_KEY
-      );
-      if (existing) cachedOrdersBlobUrl = existing.url;
-    }
-    if (cachedOrdersBlobUrl) {
-      const res = await fetch(cachedOrdersBlobUrl, { cache: "no-store" });
-      if (res.ok) return (await res.json()) as unknown[];
-      cachedOrdersBlobUrl = null; // stale URL — rediscover next read
-    }
-  } catch {
-    /* fall through */
-  }
-  return null;
-}
-
-/**
- * First-run seed. Writes the bundled JSON only if no document exists yet.
- * `allowOverwrite: false` is the safety belt: a stale/racing read here can
- * never clobber real orders (the old code's list()-miss path could wipe
- * the entire dataset back to the 122-order seed).
- */
-async function seedOrdersJson(): Promise<unknown[]> {
-  const seed = bundledOrdersData as unknown[];
-  try {
-    const result = await put(
-      ORDERS_BLOB_KEY,
-      JSON.stringify(seed, null, 2),
-      {
-        access: "public",
-        addRandomSuffix: false,
-        contentType: "application/json",
-        allowOverwrite: false,
-        cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
-      }
-    );
-    cachedOrdersBlobUrl = result.url;
-    lastWrittenOrders = seed;
-    lastWriteAt = Date.now();
-  } catch {
-    // Already exists → this is NOT a first run; the document is real and
-    // must not be clobbered. Best-effort: read what's actually there.
-    try {
-      const { list } = await import("@vercel/blob");
-      const result = await list({ prefix: ORDERS_BLOB_KEY });
-      const existing = result.blobs.find(
-        (b) => b.pathname === ORDERS_BLOB_KEY
-      );
-      if (existing) {
-        const res = await fetch(existing.url, { cache: "no-store" });
-        if (res.ok) {
-          cachedOrdersBlobUrl = existing.url;
-          return (await res.json()) as unknown[];
-        }
-      }
-    } catch {
-      /* fall through to returning the bundled seed read-only */
-    }
-  }
-  return seed;
+  return ordersDoc.read();
 }
 
 async function writeOrdersJsonToBlob(orders: unknown[]): Promise<void> {
-  const body = JSON.stringify(orders, null, 2);
-  const opts = {
-    addRandomSuffix: false as const,
-    contentType: "application/json",
-    allowOverwrite: true as const,
-    cacheControlMaxAge: ORDERS_CACHE_MAX_AGE_SECONDS,
-  };
-  try {
-    // Private: not world-readable, and strongly consistent on read via
-    // get({ useCache: false }).
-    const result = await put(ORDERS_BLOB_KEY, body, {
-      ...opts,
-      access: "private",
-    });
-    cachedOrdersBlobUrl = result.url;
-  } catch {
-    // Private blobs may be unavailable on the store — fall back to a
-    // public write so creating an order never regresses to the error
-    // page. Reads then take the ≤60s public path instead.
-    const result = await put(ORDERS_BLOB_KEY, body, {
-      ...opts,
-      access: "public",
-    });
-    cachedOrdersBlobUrl = result.url;
-  }
-  // This instance is now authoritative for its own reads for a short
-  // window — resilience if a strongly-consistent read transiently fails.
-  lastWrittenOrders = orders;
-  lastWriteAt = Date.now();
+  await ordersDoc.write(orders);
 }
 
 /**
@@ -320,6 +305,14 @@ export async function backupOrdersJson(
     return null;
   }
 }
+
+// ─── One-time Card-fee recalculation migration ─────────────────────────
+
+/** Per-process guard so the one-time Card-fee recalc is attempted once. */
+let cardFeeMigrationChecked = false;
+/** Bump the version suffix to re-run the recalc as a fresh migration. */
+const CARD_FEE_MIGRATION_FLAG =
+  "admin/migrations/recalc-card-fees-v1.json";
 
 function recalcCardFees(orders: Order[]): {
   next: Order[];
@@ -377,14 +370,27 @@ async function writeMigrationFlag(
   }
 }
 
+/** True once the Card-fee migration flag exists, however it was written. */
+async function cardFeeMigrationApplied(): Promise<boolean> {
+  // `list()` reports every blob in the store regardless of access level,
+  // so this finds the flag whether it was written private or public.
+  try {
+    const { blobs } = await list({ prefix: CARD_FEE_MIGRATION_FLAG });
+    return blobs.some((b) => b.pathname === CARD_FEE_MIGRATION_FLAG);
+  } catch {
+    // Unknown — treat as "not applied"; the migration is idempotent.
+    return false;
+  }
+}
+
 /**
  * One-time, idempotent auto-migration. On the first orders read after
  * deploy, recompute every Card order's Ziina fee with the corrected
- * (amount·2.6% + AED 1) × 1.05 formula. Guarded by a private Blob flag
- * so it runs once globally, and the document is backed up before any
- * write. Entirely best-effort: any failure returns the original orders
- * untouched (a read can never break), and because the op is idempotent
- * and flag-gated, a later cold instance simply retries until it sticks.
+ * (amount·2.6% + AED 1) × 1.05 formula. Guarded by a Blob flag so it runs
+ * once globally, and the document is backed up before any write. Entirely
+ * best-effort: any failure returns the original orders untouched (a read
+ * can never break), and because the op is idempotent and flag-gated, a
+ * later cold instance simply retries until it sticks.
  */
 async function ensureCardFeesMigrated(
   orders: unknown[]
@@ -393,18 +399,7 @@ async function ensureCardFeesMigrated(
   if (cardFeeMigrationChecked) return orders;
   cardFeeMigrationChecked = true;
 
-  // Flag check in its own guard: a flaky/throwing flag read must NOT
-  // abort the migration. Unknown → treat as "not applied" and proceed —
-  // the op is idempotent and backup-gated, so re-running is safe.
-  try {
-    const flag = await get(CARD_FEE_MIGRATION_FLAG, {
-      access: "private",
-      useCache: false,
-    });
-    if (flag && flag.statusCode === 200) return orders;
-  } catch {
-    /* unknown flag state — fall through and (idempotently) re-run */
-  }
+  if (await cardFeeMigrationApplied()) return orders;
 
   try {
     const { next, changed } = recalcCardFees(orders as Order[]);
@@ -427,21 +422,49 @@ async function ensureCardFeesMigrated(
 }
 
 // ─── File uploads ──────────────────────────────────────────────────────
+//
+// Uploaded files (Trade Licenses, wholesaler invoices) contain customer
+// PII. On the Blob backend they are stored as PRIVATE blobs and streamed
+// only through the auth-gated `/admin/uploads/...` route — never linked at
+// a public URL. The Order record stores an opaque ref:
+//   • `admin/…`              → a private Blob pathname (current)
+//   • `https://…`            → a legacy PUBLIC Blob URL (pre-privacy; the
+//                              "Secure documents" backfill migrates these)
+//   • `data/admin-uploads/…` → a local file (dev / fs backend)
 
 export interface UploadedRef {
-  /**
-   * Stored on the Order record. In dev this is a relative path under the
-   * repo (`data/admin-uploads/...`). In prod this is the full Vercel Blob
-   * URL (`https://<id>.public.blob.vercel-storage.com/...`).
-   */
+  /** Opaque reference stored on the Order record — see the note above. */
   ref: string;
   /** Detected MIME from the upload, used when serving. */
   contentType: string;
 }
 
+/** Blob pathname prefixes the upload serve route is allowed to hand out. */
+const UPLOAD_BLOB_PREFIXES = ["admin/trade-licenses/", "admin/orders/"];
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".gif": "image/gif",
+};
+
+/** Best-effort MIME type from a path / URL extension. */
+export function guessUploadMime(ref: string): string {
+  const ext = path.extname(ref.split("?")[0]).toLowerCase();
+  return MIME_BY_EXT[ext] ?? "application/octet-stream";
+}
+
 /**
  * Persist an uploaded file. `key` is a stable identifier (e.g.
  * `orders/INV0123/wholesaler-invoice.pdf` or `trade-licenses/<file>`).
+ * On Blob the file is stored PRIVATE and the returned ref is its
+ * pathname. If the store has no private-blob support the upload still
+ * succeeds as a public blob (logged) so the admin tool never breaks.
  */
 export async function putUpload(
   key: string,
@@ -449,12 +472,29 @@ export async function putUpload(
   contentType: string
 ): Promise<UploadedRef> {
   if (STORAGE_BACKEND === "blob") {
-    const result = await put(`admin/${key}`, buffer, {
-      access: "public",
-      addRandomSuffix: true,
-      contentType,
-    });
-    return { ref: result.url, contentType };
+    const pathname = `admin/${key}`;
+    try {
+      const result = await put(pathname, buffer, {
+        access: "private",
+        addRandomSuffix: true,
+        contentType,
+      });
+      return { ref: result.pathname, contentType };
+    } catch {
+      // Private blobs unavailable on this store — fall back to public so
+      // the upload never fails. PII is NOT hidden in this case; the
+      // Vercel Blob store needs private-blob support enabled.
+      console.warn(
+        "[storage] Private blob unavailable — uploaded file stored PUBLIC:",
+        pathname
+      );
+      const result = await put(pathname, buffer, {
+        access: "public",
+        addRandomSuffix: true,
+        contentType,
+      });
+      return { ref: result.url, contentType };
+    }
   }
   const fullPath = path.join(UPLOADS_FS_DIR, key);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -472,7 +512,6 @@ export async function putUpload(
  */
 export async function deleteUploadsByPrefix(prefix: string): Promise<void> {
   if (STORAGE_BACKEND === "blob") {
-    const { list } = await import("@vercel/blob");
     const result = await list({ prefix: `admin/${prefix}` });
     if (result.blobs.length === 0) return;
     await del(result.blobs.map((b) => b.url));
@@ -493,36 +532,54 @@ export async function deleteUploadsByPrefix(prefix: string): Promise<void> {
   }
 }
 
-/** True when the ref looks like an absolute Vercel Blob URL. */
-export function isBlobRef(ref: string): boolean {
-  return /^https?:\/\//.test(ref);
+/** Delete a single uploaded file by its stored ref. Best-effort. */
+export async function deleteUploadByRef(ref: string): Promise<void> {
+  try {
+    if (/^https?:\/\//.test(ref) || ref.startsWith("admin/")) {
+      // `del` accepts either a Blob URL or a pathname.
+      await del(ref);
+      return;
+    }
+    const resolved = resolveUploadRef(ref);
+    if (resolved.kind === "fs") {
+      await fs.unlink(resolved.absolutePath).catch(() => {});
+    }
+  } catch {
+    // Best-effort — a failed delete must not abort the caller.
+  }
 }
 
-/**
- * Resolve a ref into something a route handler can stream / fetch.
- * Local refs return `{ kind: "fs", absolutePath }`; blob refs return
- * `{ kind: "url", url }` so the route can redirect.
- */
-export function resolveUploadRef(
-  ref: string
-):
-  | { kind: "url"; url: string }
-  | { kind: "fs"; absolutePath: string } {
-  if (isBlobRef(ref)) return { kind: "url", url: ref };
-  return {
-    kind: "fs",
-    absolutePath: path.resolve(process.cwd(), ref),
-  };
+type ResolvedRef =
+  | { kind: "blob-url"; url: string }
+  | { kind: "blob-private"; pathname: string }
+  | { kind: "fs"; absolutePath: string };
+
+/** Classify a stored ref into how its bytes should be retrieved. */
+function resolveUploadRef(ref: string): ResolvedRef {
+  if (/^https?:\/\//.test(ref)) return { kind: "blob-url", url: ref };
+  if (ref.startsWith("admin/")) {
+    return { kind: "blob-private", pathname: ref };
+  }
+  return { kind: "fs", absolutePath: path.resolve(process.cwd(), ref) };
 }
 
-/** Fetch the bytes of an uploaded file regardless of backend. Used by ZIP export. */
+/** Fetch the bytes of an uploaded file regardless of backend. */
 export async function fetchUploadBytes(ref: string): Promise<Buffer | null> {
   try {
     const resolved = resolveUploadRef(ref);
-    if (resolved.kind === "url") {
+    if (resolved.kind === "blob-url") {
       const res = await fetch(resolved.url, { cache: "no-store" });
       if (!res.ok) return null;
       return Buffer.from(await res.arrayBuffer());
+    }
+    if (resolved.kind === "blob-private") {
+      const res = await get(resolved.pathname, { access: "private" });
+      if (!res || res.statusCode !== 200) return null;
+      return Buffer.from(
+        await new Response(
+          res.stream as ReadableStream<Uint8Array>
+        ).arrayBuffer()
+      );
     }
     return await fs.readFile(resolved.absolutePath);
   } catch {
@@ -530,10 +587,73 @@ export async function fetchUploadBytes(ref: string): Promise<Buffer | null> {
   }
 }
 
+/** What the `/admin/uploads/...` route needs to serve one file. */
+export type ServableUpload =
+  | { kind: "redirect"; url: string }
+  | {
+      kind: "stream";
+      stream: ReadableStream;
+      contentType: string;
+      contentLength?: number;
+      filename: string;
+    }
+  | { kind: "not-found" };
+
 /**
- * Open a Node-readable stream for a local fs ref. Throws when called on a
- * blob ref — callers should branch on `resolveUploadRef`.
+ * Resolve a stored ref into a streamable response for the auth-gated
+ * `/admin/uploads/...` route. Enforces that private Blob refs sit under an
+ * allowed upload prefix, and that fs refs stay inside the uploads dir.
  */
-export function openLocalReadStream(absolutePath: string): Readable {
-  return createReadStream(absolutePath);
+export async function openUploadForServing(
+  ref: string
+): Promise<ServableUpload> {
+  const resolved = resolveUploadRef(ref);
+
+  if (resolved.kind === "blob-url") {
+    // Legacy public file — already internet-reachable; just redirect.
+    return { kind: "redirect", url: resolved.url };
+  }
+
+  if (resolved.kind === "blob-private") {
+    if (
+      !UPLOAD_BLOB_PREFIXES.some((p) => resolved.pathname.startsWith(p))
+    ) {
+      return { kind: "not-found" };
+    }
+    try {
+      const res = await get(resolved.pathname, { access: "private" });
+      if (!res || res.statusCode !== 200) return { kind: "not-found" };
+      return {
+        kind: "stream",
+        stream: res.stream as ReadableStream,
+        contentType:
+          res.blob.contentType || guessUploadMime(resolved.pathname),
+        contentLength: res.blob.size,
+        filename: path.basename(resolved.pathname),
+      };
+    } catch {
+      return { kind: "not-found" };
+    }
+  }
+
+  // fs — confine to the uploads directory (path-traversal guard).
+  const abs = resolved.absolutePath;
+  if (abs !== UPLOADS_FS_DIR && !abs.startsWith(UPLOADS_FS_DIR + path.sep)) {
+    return { kind: "not-found" };
+  }
+  try {
+    const stat = await fs.stat(abs);
+    if (!stat.isFile()) return { kind: "not-found" };
+    return {
+      kind: "stream",
+      stream: Readable.toWeb(
+        createReadStream(abs)
+      ) as unknown as ReadableStream,
+      contentType: guessUploadMime(abs),
+      contentLength: stat.size,
+      filename: path.basename(abs),
+    };
+  } catch {
+    return { kind: "not-found" };
+  }
 }

@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { Readable } from "node:stream";
-import { openLocalReadStream } from "@/lib/admin/storage";
+import { openUploadForServing } from "@/lib/admin/storage";
 
 export const runtime = "nodejs";
 
-// Auth-gated file server for the local-fs backend. In dev we stream the
-// file from disk; in prod the order records hold full Vercel Blob URLs
-// instead of relative paths and the modal links directly to those URLs,
-// so this route is essentially dev-only.
-const ROOT = path.resolve(process.cwd(), "data", "admin-uploads");
-
-const MIME_BY_EXT: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".heic": "image/heic",
-  ".heif": "image/heif",
-};
+// Auth-gated file server for uploaded customer documents (trade licenses,
+// wholesaler invoices). Every /admin/* path — this route included — is
+// gated by the session-cookie middleware, so reaching here means the
+// request is authenticated.
+//
+// The bytes live either on the local filesystem (dev) or as PRIVATE
+// Vercel Blobs (prod); `openUploadForServing` resolves whichever backend
+// applies. Private blobs are never exposed at a public URL — they are
+// only ever streamed through this route.
 
 interface Params {
   params: Promise<{ path: string[] }>;
@@ -32,34 +23,27 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const requested = path.resolve(ROOT, ...segments);
-  if (!requested.startsWith(ROOT + path.sep) && requested !== ROOT) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // The full stored ref is the joined catch-all segments.
+  const ref = segments.join("/");
+  const result = await openUploadForServing(ref);
 
-  let stat;
-  try {
-    stat = await fs.stat(requested);
-  } catch {
+  if (result.kind === "not-found") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (!stat.isFile()) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (result.kind === "redirect") {
+    return NextResponse.redirect(result.url);
   }
 
-  const ext = path.extname(requested).toLowerCase();
-  const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
-
-  const nodeStream = openLocalReadStream(requested);
-  const webStream = Readable.toWeb(nodeStream) as unknown as ReadableStream;
-
-  return new NextResponse(webStream, {
+  return new NextResponse(result.stream, {
     status: 200,
     headers: {
-      "Content-Type": mime,
-      "Content-Length": String(stat.size),
-      "Content-Disposition": `inline; filename="${path.basename(requested)}"`,
-      "Cache-Control": "no-store",
+      "Content-Type": result.contentType,
+      ...(result.contentLength !== undefined
+        ? { "Content-Length": String(result.contentLength) }
+        : {}),
+      "Content-Disposition": `inline; filename="${result.filename}"`,
+      // Private customer document — never let a shared cache keep it.
+      "Cache-Control": "private, no-store",
     },
   });
 }

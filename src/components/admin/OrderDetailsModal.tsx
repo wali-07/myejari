@@ -64,13 +64,13 @@ interface EditForm {
   officeType: OfficeTypeChoice;
 }
 
-// In prod an uploaded ref is already an absolute Vercel Blob URL. In dev
-// it's a repo-relative path served by /admin/uploads/[...path].
+// Build the link to an uploaded document. A legacy public Blob URL is
+// linked directly (it is already internet-reachable). A private Blob
+// pathname or a dev fs path is streamed through the auth-gated
+// /admin/uploads/[...path] route, which receives the full ref verbatim.
 function storagePathToUrl(ref: string): string {
   if (/^https?:\/\//.test(ref)) return ref;
-  const cleaned = ref.replace(/\\/g, "/");
-  const stripped = cleaned.replace(/^data\/admin-uploads\//, "");
-  return `/admin/uploads/${stripped}`;
+  return `/admin/uploads/${ref.replace(/\\/g, "/")}`;
 }
 
 function formFromOrder(order: Order): EditForm {
