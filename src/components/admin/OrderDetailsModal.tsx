@@ -7,8 +7,6 @@ import {
   Clock,
   Download,
   FileText,
-  Copy,
-  ExternalLink,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -123,7 +121,7 @@ export default function OrderDetailsModal({
   const [shareBusy, setShareBusy] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
-  const shareInputRef = useRef<HTMLInputElement | null>(null);
+  const [shareNonce, setShareNonce] = useState(0);
   const [shareForInvoice, setShareForInvoice] = useState(order.invoice);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -141,6 +139,49 @@ export default function OrderDetailsModal({
       document.body.style.overflow = "";
     };
   }, [open, busy, onClose]);
+
+  // Prepare the shareable PDF as soon as the modal opens. Fetching the file
+  // up front is what makes a single-tap share possible: when the admin taps
+  // "Share PDF", the file is already in memory, so navigator.share() runs
+  // synchronously inside that tap — the only thing iOS Safari will allow.
+  useEffect(() => {
+    if (!open || editing) return;
+    let active = true;
+    const load = async () => {
+      setShareBusy(true);
+      setShareError(null);
+      try {
+        const res = await getInvoiceShareLink(order.invoice);
+        if (!res.ok) throw new Error(res.error);
+        const url = `${window.location.origin}${res.path}`;
+        const pdfRes = await fetch(res.path);
+        if (!pdfRes.ok) throw new Error("Couldn't prepare the PDF");
+        const blob = await pdfRes.blob();
+        const file = new File([blob], `${order.invoice}.pdf`, {
+          type: "application/pdf",
+        });
+        if (!active) return;
+        setShareUrl(url);
+        setShareFile(file);
+        setCanShareFile(
+          typeof navigator.canShare === "function" &&
+            navigator.canShare({ files: [file] })
+        );
+      } catch (err) {
+        if (active) {
+          setShareError(
+            err instanceof Error ? err.message : "Couldn't prepare the PDF"
+          );
+        }
+      } finally {
+        if (active) setShareBusy(false);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [open, editing, order.invoice, shareNonce]);
 
   // Drop any revealed share link when the modal switches to another order.
   // Adjusting state during render (React's documented pattern) keeps the
@@ -245,62 +286,14 @@ export default function OrderDetailsModal({
     });
   }
 
-  // Open (or hide) the share panel. Mints the login-free link AND pre-fetches
-  // the PDF bytes, so the native share sheet can later be opened synchronously
-  // from a button click (iOS only allows navigator.share inside a gesture).
-  async function revealShareLink() {
-    setShareError(null);
-    setShareCopied(false);
-    if (shareUrl) {
-      setShareUrl(null); // toggle closed
-      setShareFile(null);
-      setCanShareFile(false);
-      return;
-    }
-    setShareBusy(true);
-    try {
-      const res = await getInvoiceShareLink(order.invoice);
-      if (!res.ok) throw new Error(res.error);
-      const url = `${window.location.origin}${res.path}`;
-      setShareUrl(url);
-
-      // Pull the actual PDF down now, while we're already awaiting, so the
-      // "Share PDF" button can hand the file straight to navigator.share.
-      try {
-        const pdfRes = await fetch(res.path);
-        if (pdfRes.ok) {
-          const blob = await pdfRes.blob();
-          const file = new File([blob], `${order.invoice}.pdf`, {
-            type: "application/pdf",
-          });
-          setShareFile(file);
-          setCanShareFile(
-            typeof navigator.canShare === "function" &&
-              navigator.canShare({ files: [file] })
-          );
-        }
-      } catch {
-        // Prefetch failed — the link and Open button still work; we just
-        // can't offer native file-share or download this time.
-        setShareFile(null);
-        setCanShareFile(false);
-      }
-
-      // Desktop convenience only — mobile/Safari block this post-await write,
-      // which is fine: the Copy button is the reliable path.
-      navigator.clipboard?.writeText(url)?.then(
-        () => {
-          setShareCopied(true);
-          window.setTimeout(() => setShareCopied(false), 2000);
-        },
-        () => {}
-      );
-    } catch (err) {
-      setShareError(
-        err instanceof Error ? err.message : "Couldn't create the link"
-      );
-    } finally {
-      setShareBusy(false);
+  // One tap. The PDF was pre-fetched on open, so this runs synchronously
+  // inside the tap: native share sheet on mobile, download on desktop.
+  function handleSharePrimary() {
+    if (!shareFile) return;
+    if (canShareFile) {
+      void sharePdf();
+    } else {
+      downloadPdf();
     }
   }
 
@@ -336,23 +329,19 @@ export default function OrderDetailsModal({
     window.setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
 
-  // Copy the revealed URL. Runs entirely inside this click's gesture so the
-  // clipboard write is allowed; falls back to selecting the field if it's not.
-  function copyShareUrl() {
+  // Secondary: copy the login-free link instead of sending the file. Runs in
+  // the click gesture, with a prompt fallback if the clipboard API is blocked.
+  function copyLink() {
     const url = shareUrl;
     if (!url) return;
-    const input = shareInputRef.current;
-    input?.focus();
-    input?.select();
-    input?.setSelectionRange(0, url.length);
     try {
       if (navigator.clipboard?.writeText) {
         navigator.clipboard.writeText(url);
       } else {
-        document.execCommand("copy");
+        window.prompt("Copy this link", url);
       }
     } catch {
-      // Selection stays put so the admin can copy by hand.
+      window.prompt("Copy this link", url);
     }
     setShareCopied(true);
     window.setTimeout(() => setShareCopied(false), 2000);
@@ -768,103 +757,19 @@ export default function OrderDetailsModal({
 
         {/* Footer */}
         <footer className="flex flex-col gap-2.5 border-t border-border bg-white px-5 py-3.5 sm:px-6">
-          {!editing && (shareUrl || shareError) && (
-            <div className="flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/5 px-2.5 py-2">
-              {shareError ? (
-                <div className="flex items-center gap-2">
-                  <Link2 size={14} className="shrink-0 text-coral" />
-                  <span className="flex-1 text-xs font-medium text-coral">
-                    {shareError}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={revealShareLink}
-                    className="text-xs font-semibold text-foreground/70 transition-colors hover:text-foreground"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Primary: send the actual PDF */}
-                  <div className="flex items-center gap-1.5">
-                    {canShareFile && shareFile && (
-                      <button
-                        type="button"
-                        onClick={sharePdf}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-semibold text-white transition-colors hover:bg-primary"
-                      >
-                        <Share2 size={14} />
-                        Share PDF
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={downloadPdf}
-                      disabled={!shareFile}
-                      className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                        canShareFile
-                          ? "border border-border bg-white text-foreground/80 hover:text-foreground"
-                          : "bg-foreground text-white hover:bg-primary"
-                      }`}
-                    >
-                      <Download size={14} />
-                      {shareFile ? "Download PDF" : "Preparing PDF…"}
-                    </button>
-                    <span className="ml-0.5 hidden text-[11px] text-foreground/50 sm:inline">
-                      {canShareFile
-                        ? "Send straight to WhatsApp, email…"
-                        : "Attach it to your message"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={revealShareLink}
-                      title="Close"
-                      aria-label="Close share panel"
-                      className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-foreground/40 transition-colors hover:text-foreground"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  {/* Secondary: the login-free link */}
-                  <div className="flex items-center gap-2 border-t border-primary/10 pt-2">
-                    <Link2 size={14} className="shrink-0 text-primary" />
-                    <input
-                      ref={shareInputRef}
-                      readOnly
-                      value={shareUrl ?? ""}
-                      onFocus={(e) => e.currentTarget.select()}
-                      aria-label="Public invoice link"
-                      className="min-w-0 flex-1 bg-transparent text-xs text-foreground/70 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={copyShareUrl}
-                      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground"
-                    >
-                      {shareCopied ? (
-                        <>
-                          <Check size={13} /> Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={13} /> Copy link
-                        </>
-                      )}
-                    </button>
-                    <a
-                      href={shareUrl ?? "#"}
-                      target="_blank"
-                      rel="noopener"
-                      title="Open the customer view in a new tab"
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-foreground/60 transition-colors hover:text-foreground"
-                    >
-                      <ExternalLink size={13} />
-                    </a>
-                  </div>
-                </>
-              )}
+          {!editing && shareError && (
+            <div className="flex items-center gap-2 rounded-xl border border-coral/30 bg-coral/5 px-2.5 py-2">
+              <Link2 size={14} className="shrink-0 text-coral" />
+              <span className="flex-1 text-xs font-medium text-coral">
+                {shareError}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShareNonce((n) => n + 1)}
+                className="text-xs font-semibold text-foreground/70 transition-colors hover:text-foreground"
+              >
+                Retry
+              </button>
             </div>
           )}
 
@@ -913,21 +818,41 @@ export default function OrderDetailsModal({
                 </Link>
                 <button
                   type="button"
-                  onClick={revealShareLink}
-                  disabled={busy || shareBusy}
-                  title="Get a public link the customer can open without logging in"
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors disabled:opacity-60 ${
-                    shareUrl
-                      ? "border-primary/30 bg-primary/10 text-primary"
-                      : "border-border bg-white text-foreground/80 hover:text-foreground"
-                  }`}
+                  onClick={handleSharePrimary}
+                  disabled={busy || shareBusy || !shareFile}
+                  title={
+                    canShareFile
+                      ? "Send the invoice PDF to the customer (WhatsApp, email…)"
+                      : "Download the invoice PDF to attach to your message"
+                  }
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-foreground px-3.5 text-xs font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
                 >
-                  {shareBusy ? (
+                  {shareBusy || !shareFile ? (
                     <Loader2 size={14} className="animate-spin" />
+                  ) : canShareFile ? (
+                    <Share2 size={14} />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  {shareBusy || !shareFile
+                    ? "Preparing…"
+                    : canShareFile
+                      ? "Share PDF"
+                      : "Download"}
+                </button>
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  disabled={busy || !shareUrl}
+                  title="Copy the customer link (no login needed)"
+                  aria-label="Copy customer link"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-white text-foreground/70 transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  {shareCopied ? (
+                    <Check size={14} className="text-emerald-600" />
                   ) : (
                     <Link2 size={14} />
                   )}
-                  Share
                 </button>
                 <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
                 <button
