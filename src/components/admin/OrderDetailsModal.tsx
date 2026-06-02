@@ -7,6 +7,8 @@ import {
   Clock,
   Download,
   FileText,
+  Copy,
+  ExternalLink,
   Image as ImageIcon,
   Link2,
   Loader2,
@@ -110,9 +112,16 @@ export default function OrderDetailsModal({
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [shareState, setShareState] = useState<"idle" | "copying" | "copied">(
-    "idle"
-  );
+  // Share-link panel. We reveal the URL inline rather than copy-on-click:
+  // a clipboard write that runs AFTER an awaited server action is outside
+  // the user-gesture window and gets silently blocked by Safari/iOS. The
+  // visible Copy button below copies synchronously inside its own click.
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const shareInputRef = useRef<HTMLInputElement | null>(null);
+  const [shareForInvoice, setShareForInvoice] = useState(order.invoice);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const busy = pending || uploading;
@@ -129,6 +138,16 @@ export default function OrderDetailsModal({
       document.body.style.overflow = "";
     };
   }, [open, busy, onClose]);
+
+  // Drop any revealed share link when the modal switches to another order.
+  // Adjusting state during render (React's documented pattern) keeps the
+  // stale link from showing for even one frame.
+  if (shareForInvoice !== order.invoice) {
+    setShareForInvoice(order.invoice);
+    setShareUrl(null);
+    setShareError(null);
+    setShareCopied(false);
+  }
 
   if (!open) return null;
 
@@ -221,25 +240,60 @@ export default function OrderDetailsModal({
     });
   }
 
-  // Copy a public, login-free invoice link to the clipboard. The server
-  // action returns a relative path with the HMAC token; we prepend the
-  // current origin so the link works from wherever the admin is running.
-  async function handleCopyShareLink() {
-    setError(null);
-    setShareState("copying");
+  // Reveal (or hide) the public, login-free invoice link. Fetches the signed
+  // path from the server action and shows it inline; a best-effort auto-copy
+  // covers desktop, while the visible Copy button handles every browser.
+  async function revealShareLink() {
+    setShareError(null);
+    setShareCopied(false);
+    if (shareUrl) {
+      setShareUrl(null); // toggle closed
+      return;
+    }
+    setShareBusy(true);
     try {
       const res = await getInvoiceShareLink(order.invoice);
       if (!res.ok) throw new Error(res.error);
       const url = `${window.location.origin}${res.path}`;
-      await navigator.clipboard.writeText(url);
-      setShareState("copied");
-      setTimeout(() => setShareState("idle"), 2000);
-    } catch (err) {
-      setShareState("idle");
-      setError(
-        err instanceof Error ? err.message : "Couldn't create the share link"
+      setShareUrl(url);
+      // Desktop convenience only — mobile/Safari block this post-await write,
+      // which is fine: the Copy button is the reliable path.
+      navigator.clipboard?.writeText(url)?.then(
+        () => {
+          setShareCopied(true);
+          window.setTimeout(() => setShareCopied(false), 2000);
+        },
+        () => {}
       );
+    } catch (err) {
+      setShareError(
+        err instanceof Error ? err.message : "Couldn't create the link"
+      );
+    } finally {
+      setShareBusy(false);
     }
+  }
+
+  // Copy the revealed URL. Runs entirely inside this click's gesture so the
+  // clipboard write is allowed; falls back to selecting the field if it's not.
+  function copyShareUrl() {
+    const url = shareUrl;
+    if (!url) return;
+    const input = shareInputRef.current;
+    input?.focus();
+    input?.select();
+    input?.setSelectionRange(0, url.length);
+    try {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(url);
+      } else {
+        document.execCommand("copy");
+      }
+    } catch {
+      // Selection stays put so the admin can copy by hand.
+    }
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 2000);
   }
 
   async function handleFile(file: File) {
@@ -651,7 +705,73 @@ export default function OrderDetailsModal({
         </div>
 
         {/* Footer */}
-        <footer className="flex items-center justify-between gap-2 border-t border-border bg-white px-5 py-3.5 sm:px-6">
+        <footer className="flex flex-col gap-2.5 border-t border-border bg-white px-5 py-3.5 sm:px-6">
+          {!editing && (shareUrl || shareError) && (
+            <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-2.5 py-2">
+              {shareError ? (
+                <>
+                  <Link2 size={14} className="shrink-0 text-coral" />
+                  <span className="flex-1 text-xs font-medium text-coral">
+                    {shareError}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={revealShareLink}
+                    className="text-xs font-semibold text-foreground/70 transition-colors hover:text-foreground"
+                  >
+                    Retry
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link2 size={14} className="shrink-0 text-primary" />
+                  <input
+                    ref={shareInputRef}
+                    readOnly
+                    value={shareUrl ?? ""}
+                    onFocus={(e) => e.currentTarget.select()}
+                    aria-label="Public invoice link"
+                    className="min-w-0 flex-1 bg-transparent text-xs text-foreground/80 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyShareUrl}
+                    className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-foreground px-2.5 text-xs font-semibold text-white transition-colors hover:bg-primary"
+                  >
+                    {shareCopied ? (
+                      <>
+                        <Check size={13} /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} /> Copy
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href={shareUrl ?? "#"}
+                    target="_blank"
+                    rel="noopener"
+                    title="Open the customer view in a new tab"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-foreground/60 transition-colors hover:text-foreground"
+                  >
+                    <ExternalLink size={13} />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShareUrl(null)}
+                    title="Close"
+                    aria-label="Close share link"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-foreground/40 transition-colors hover:text-foreground"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
           {editing ? (
             <>
               <button
@@ -688,6 +808,7 @@ export default function OrderDetailsModal({
                   href={`/admin/invoices/${order.invoice}`}
                   target="_blank"
                   rel="noopener"
+                  title="Open the invoice PDF (admin view)"
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground"
                 >
                   <Download size={14} />
@@ -695,36 +816,32 @@ export default function OrderDetailsModal({
                 </Link>
                 <button
                   type="button"
-                  onClick={handleCopyShareLink}
-                  disabled={busy || shareState === "copying"}
-                  title="Copy a public link the customer can open without logging in"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
+                  onClick={revealShareLink}
+                  disabled={busy || shareBusy}
+                  title="Get a public link the customer can open without logging in"
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors disabled:opacity-60 ${
+                    shareUrl
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-border bg-white text-foreground/80 hover:text-foreground"
+                  }`}
                 >
-                  {shareState === "copied" ? (
-                    <>
-                      <Check size={14} className="text-emerald-600" />
-                      Link copied
-                    </>
-                  ) : shareState === "copying" ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      Link…
-                    </>
+                  {shareBusy ? (
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <>
-                      <Link2 size={14} />
-                      Share link
-                    </>
+                    <Link2 size={14} />
                   )}
+                  Share
                 </button>
+                <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={busy}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-coral transition-colors hover:bg-coral/10 disabled:opacity-60"
+                  title="Delete this order"
+                  aria-label="Delete order"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-white text-coral transition-colors hover:bg-coral/10 disabled:opacity-60"
                 >
                   <Trash2 size={14} />
-                  Delete
                 </button>
               </div>
 
@@ -790,6 +907,7 @@ export default function OrderDetailsModal({
               </div>
             </>
           )}
+          </div>
         </footer>
       </div>
     </div>
