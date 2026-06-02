@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Image as ImageIcon,
+  Link2,
   Loader2,
   Pencil,
   Receipt,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/admin/orders";
 import {
   deleteOrder,
+  getInvoiceShareLink,
   markOrderPaid,
   updateOrder,
 } from "@/app/admin/(workspace)/actions";
@@ -108,6 +110,9 @@ export default function OrderDetailsModal({
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [shareState, setShareState] = useState<"idle" | "copying" | "copied">(
+    "idle"
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const busy = pending || uploading;
@@ -214,6 +219,27 @@ export default function OrderDetailsModal({
         setError(res.error ?? "Failed to delete order");
       }
     });
+  }
+
+  // Copy a public, login-free invoice link to the clipboard. The server
+  // action returns a relative path with the HMAC token; we prepend the
+  // current origin so the link works from wherever the admin is running.
+  async function handleCopyShareLink() {
+    setError(null);
+    setShareState("copying");
+    try {
+      const res = await getInvoiceShareLink(order.invoice);
+      if (!res.ok) throw new Error(res.error);
+      const url = `${window.location.origin}${res.path}`;
+      await navigator.clipboard.writeText(url);
+      setShareState("copied");
+      setTimeout(() => setShareState("idle"), 2000);
+    } catch (err) {
+      setShareState("idle");
+      setError(
+        err instanceof Error ? err.message : "Couldn't create the share link"
+      );
+    }
   }
 
   async function handleFile(file: File) {
@@ -667,6 +693,30 @@ export default function OrderDetailsModal({
                   <Download size={14} />
                   PDF
                 </Link>
+                <button
+                  type="button"
+                  onClick={handleCopyShareLink}
+                  disabled={busy || shareState === "copying"}
+                  title="Copy a public link the customer can open without logging in"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
+                >
+                  {shareState === "copied" ? (
+                    <>
+                      <Check size={14} className="text-emerald-600" />
+                      Link copied
+                    </>
+                  ) : shareState === "copying" ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Link…
+                    </>
+                  ) : (
+                    <>
+                      <Link2 size={14} />
+                      Share link
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={handleDelete}

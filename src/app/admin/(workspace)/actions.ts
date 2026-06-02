@@ -16,6 +16,7 @@ import {
   updateOrderRecord,
   writeOrders,
 } from "@/lib/admin/orders-store";
+import { signInvoiceToken } from "@/lib/admin/invoice-share";
 
 // Re-render the /admin route everywhere it's cached, then push the fresh
 // tree to the client router as part of THIS action's response. Doing both
@@ -231,6 +232,28 @@ export async function deleteOrder(
   const result = await deleteOrderByInvoice(invoice);
   if (result.ok) refreshAdmin();
   return result;
+}
+
+/**
+ * Build a public, login-free share link for a customer invoice. Returns a
+ * RELATIVE path — the client prepends the current origin — carrying an HMAC
+ * token that the public `/invoice/[invoice]` route verifies. Anyone with the
+ * link can open the PDF without logging in; nobody can forge one for an
+ * invoice they weren't given.
+ */
+export async function getInvoiceShareLink(
+  invoice: string
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const orders = await readOrders();
+  const order = orders.find(
+    (o) => o.invoice.toLowerCase() === invoice.toLowerCase()
+  );
+  if (!order) return { ok: false, error: "Order not found" };
+  const token = await signInvoiceToken(order.invoice);
+  return {
+    ok: true,
+    path: `/invoice/${encodeURIComponent(order.invoice)}?t=${token}`,
+  };
 }
 
 /**

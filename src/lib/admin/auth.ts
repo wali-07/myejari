@@ -33,7 +33,7 @@ function isProductionMisconfigured(): boolean {
 }
 
 /** Constant-time-ish equality for email/password comparison. */
-function safeEqual(a: string, b: string): boolean {
+export function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let mismatch = 0;
   for (let i = 0; i < a.length; i++) {
@@ -56,7 +56,11 @@ export function verifyCredentials(email: string, password: string): boolean {
   );
 }
 
-async function hmacBase64(message: string): Promise<string> {
+/**
+ * HMAC-SHA256 a message with the shared session secret and return a
+ * base64url digest. Used for session signatures and invoice share tokens.
+ */
+export async function hmacBase64(message: string): Promise<string> {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
