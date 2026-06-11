@@ -90,10 +90,10 @@ export const posts: BlogPost[] = [
     content: [
       {
         type: "p",
-        text: "Dubai is one of the most business-friendly cities in the world — and a virtual office is now the default way for founders, freelancers, and online businesses to set up here without the cost or commitment of a private office. This guide walks through what a virtual office actually is in Dubai, how the Ejari piece fits in, and how to get a Virtual Office Ejari that the DET and free zone authorities will accept.",
+        text: "Dubai is one of the most business-friendly cities in the world — and a virtual office is now the default way for founders, freelancers, and online businesses to set up here without the cost or commitment of a private office. This guide walks through what a virtual office actually is in Dubai, how the Ejari piece fits in, and how to get a Virtual Office Ejari that meets DET and free zone requirements.",
         links: [
           {
-            match: "DET and free zone authorities will accept",
+            match: "meets DET and free zone requirements",
             href: "/blog/virtual-office-ejari-dubai",
           },
         ],
@@ -219,9 +219,9 @@ export const posts: BlogPost[] = [
   {
     slug: "virtual-office-ejari-dubai",
     title:
-      "Virtual Office Ejari in Dubai: Same-Day Issuance on WhatsApp",
+      "Virtual Office Ejari in Dubai: What's Allowed & How to Get One",
     description:
-      "Get a Virtual Office Ejari for your Dubai trade license — RERA-approved business centers, same-day issuance, handled end-to-end on WhatsApp.",
+      "Can you get an Ejari for a virtual office in Dubai? Yes — here's what's allowed, the documents you need, and how to get it issued the same day on WhatsApp.",
     date: "2025-09-15",
     dateModified: "2026-05-20",
     readingTime: "6 min read",
@@ -343,8 +343,12 @@ export const posts: BlogPost[] = [
       { type: "h2", text: "How MyEjari handles all of this" },
       {
         type: "p",
-        text: "We are the front line. You message us once on WhatsApp; we match you with a RERA-approved business center that can host your activity, sort the documentation, and deal with the DLD on your behalf. You receive the issued Ejari directly from us, ready for the DET portal or your free zone authority. If you are using this for a trade license renewal specifically, our renewal guide breaks down the DET-side requirements step by step.",
+        text: "We are the front line. You message us once on WhatsApp; we match you with a RERA-approved business center that can host your activity, sort the documentation, and coordinate the Ejari registration on your behalf. You receive the issued Ejari directly from us, ready for the DET portal or your free zone authority. Start your Virtual Office Ejari with us and we handle the rest. If you are using this for a trade license renewal specifically, our renewal guide breaks down the DET-side requirements step by step.",
         links: [
+          {
+            match: "Start your Virtual Office Ejari with us",
+            href: "/",
+          },
           {
             match: "renewal guide",
             href: "/blog/trade-license-renewal-dubai-virtual-office-ejari",
@@ -363,11 +367,11 @@ export const posts: BlogPost[] = [
       },
       {
         q: "Can I get an Ejari for a virtual office?",
-        a: "Yes. As long as the provider is a RERA-approved business center and the lease is properly registered through the Ejari system, a Virtual Office Ejari is fully accepted by the DET, free zones, and banks. MyEjari only works with pre-vetted centers so the certificate clears on first submission.",
+        a: "Yes. As long as the provider is a RERA-approved business center and the lease is properly registered through the Ejari system, a Virtual Office Ejari is recognised by the DET, free zones, and banks. MyEjari only works with pre-vetted centers to keep your submission clean.",
       },
       {
         q: "What documents do I need for a Virtual Office Ejari?",
-        a: "You need a lease agreement from a RERA-approved business center, a copy of your trade license (or initial approval for new issuance), passport copy, Emirates ID, and a contact number for OTP verification. MyEjari handles the submission to the DLD on your behalf.",
+        a: "You need a lease agreement from a RERA-approved business center, a copy of your trade license (or initial approval for new issuance), passport copy, Emirates ID, and a contact number for OTP verification. The business center handles the DLD submission, and we coordinate it with you on WhatsApp.",
       },
       {
         q: "Can I open a corporate bank account with a Virtual Office Ejari?",
@@ -512,7 +516,7 @@ export const posts: BlogPost[] = [
       { type: "h2", text: "Where MyEjari fits in" },
       {
         type: "p",
-        text: "Step 5 — the Ejari step — is what we exist for. We match you with a RERA-approved business center, sort the registered address and Ejari certificate, and hand you a document the DET or free zone authority will accept on the first try. Founders generally hit our WhatsApp once, then again at the next renewal.",
+        text: "Step 5 — the Ejari step — is what we exist for. We match you with a RERA-approved business center, sort the registered address and Ejari certificate, and hand you a DET-ready document issued by the business center. Founders generally hit our WhatsApp once, then again at the next renewal.",
       },
       {
         type: "cta",
@@ -852,8 +856,12 @@ export const posts: BlogPost[] = [
       { type: "h2", text: "Why founders use MyEjari for renewals" },
       {
         type: "p",
-        text: "We sit between you and the licensed business centers. You tell us your activity, your renewal date, and any quirks (banks that need an inspection, partners abroad, expired Emirates IDs in renewal). We line up the right business center, register the Ejari, and hand you a certificate the DET will accept on the first try. The whole exchange is on WhatsApp, in your existing chat with us. For the underlying Ejari renewal mechanics — documents, the DLD's process, what to do if your tenancy contract has lapsed — see our standalone Ejari renewal guide.",
+        text: "We sit between you and the licensed business centers. You tell us your activity, your renewal date, and any quirks (banks that need an inspection, partners abroad, expired Emirates IDs in renewal). We line up the right business center, get the Ejari registered, and hand you a DET-ready certificate issued by the business center. The whole exchange is on WhatsApp, in your existing chat with us. Start your Virtual Office Ejari renewal with us and we'll line up the rest. For the underlying Ejari renewal mechanics — documents, the DLD's process, what to do if your tenancy contract has lapsed — see our standalone Ejari renewal guide.",
         links: [
+          {
+            match: "Start your Virtual Office Ejari renewal with us",
+            href: "/",
+          },
           {
             match: "standalone Ejari renewal guide",
             href: "/blog/how-to-renew-ejari-dubai",
@@ -1851,7 +1859,7 @@ export const posts: BlogPost[] = [
       },
       {
         type: "p",
-        text: "So when someone says 'I need an office with Ejari in Dubai', they really mean: 'I need a tenancy at a commercial address, registered through Ejari, that the licensing authority will accept.' The size and shape of the premises is a separate question.",
+        text: "So when someone says 'I need an office with Ejari in Dubai', they really mean: 'I need a tenancy at a commercial address, registered through Ejari, that meets the licensing authority's requirements.' The size and shape of the premises is a separate question.",
       },
       {
         type: "p",

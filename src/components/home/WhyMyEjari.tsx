@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import { motion, useInView } from "framer-motion";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { whatsappLink } from "@/lib/contact";
@@ -81,8 +82,22 @@ export default function WhyMyEjari() {
           </p>
 
           <p className="mt-4 max-w-lg text-base leading-relaxed text-white/70">
-            Think of us as your Ejari matchmakers, helping you find the right
-            Virtual Office for a smooth, hassle-free process.
+            Think of us as your Ejari matchmakers, helping you find the right{" "}
+            <Link
+              href="/blog/virtual-office-ejari-dubai"
+              className="font-medium text-white underline decoration-white/40 underline-offset-4 transition-colors hover:decoration-white"
+            >
+              Virtual Office Ejari
+            </Link>{" "}
+            for a smooth, hassle-free process — whether you&apos;re issuing a new
+            trade license or handling a{" "}
+            <Link
+              href="/blog/trade-license-renewal-dubai-virtual-office-ejari"
+              className="font-medium text-white underline decoration-white/40 underline-offset-4 transition-colors hover:decoration-white"
+            >
+              trade license renewal
+            </Link>
+            .
           </p>
 
           <a
