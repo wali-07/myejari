@@ -22,10 +22,13 @@ const nextConfig: NextConfig = {
         destination: `/blog/${slug}`,
         permanent: true,
       })),
-      // Legacy blog index URL → /blog
+      // Malformed legacy URL (hyphen instead of /blog/ path separator).
+      // Google indexed it and it accrued impressions on virtual-office
+      // queries, so send it to the money article — not the blog index —
+      // to consolidate that authority onto the page we want ranking.
       {
         source: "/blog-virtual-office-ejari-dubai",
-        destination: "/blog",
+        destination: "/blog/virtual-office-ejari-dubai",
         permanent: true,
       },
       // Legacy privacy URL → /privacy
