@@ -111,15 +111,13 @@ export default function OrderDetailsModal({
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
-  // Share-link panel. We reveal the URL inline rather than copy-on-click:
-  // a clipboard write that runs AFTER an awaited server action is outside
-  // the user-gesture window and gets silently blocked by Safari/iOS. The
-  // visible Copy button below copies synchronously inside its own click.
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  // Invoice PDF share. We pre-fetch the file when the modal opens so the
+  // native share sheet can fire synchronously inside the tap — the only
+  // thing iOS Safari allows (an async share after an awaited server action
+  // falls outside the user-gesture window and gets silently blocked).
   const [shareFile, setShareFile] = useState<File | null>(null);
   const [canShareFile, setCanShareFile] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareNonce, setShareNonce] = useState(0);
   const [shareForInvoice, setShareForInvoice] = useState(order.invoice);
@@ -153,7 +151,6 @@ export default function OrderDetailsModal({
       try {
         const res = await getInvoiceShareLink(order.invoice);
         if (!res.ok) throw new Error(res.error);
-        const url = `${window.location.origin}${res.path}`;
         const pdfRes = await fetch(res.path);
         if (!pdfRes.ok) throw new Error("Couldn't prepare the PDF");
         const blob = await pdfRes.blob();
@@ -161,7 +158,6 @@ export default function OrderDetailsModal({
           type: "application/pdf",
         });
         if (!active) return;
-        setShareUrl(url);
         setShareFile(file);
         setCanShareFile(
           typeof navigator.canShare === "function" &&
@@ -188,11 +184,9 @@ export default function OrderDetailsModal({
   // stale link from showing for even one frame.
   if (shareForInvoice !== order.invoice) {
     setShareForInvoice(order.invoice);
-    setShareUrl(null);
     setShareFile(null);
     setCanShareFile(false);
     setShareError(null);
-    setShareCopied(false);
   }
 
   if (!open) return null;
@@ -327,24 +321,6 @@ export default function OrderDetailsModal({
     a.click();
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(href), 1000);
-  }
-
-  // Secondary: copy the login-free link instead of sending the file. Runs in
-  // the click gesture, with a prompt fallback if the clipboard API is blocked.
-  function copyLink() {
-    const url = shareUrl;
-    if (!url) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(url);
-      } else {
-        window.prompt("Copy this link", url);
-      }
-    } catch {
-      window.prompt("Copy this link", url);
-    }
-    setShareCopied(true);
-    window.setTimeout(() => setShareCopied(false), 2000);
   }
 
   async function handleFile(file: File) {
@@ -773,14 +749,14 @@ export default function OrderDetailsModal({
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-2">
           {editing ? (
-            <>
+            /* ─── Edit mode: cancel + save ──────────────────────── */
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={cancelEdit}
                 disabled={pending}
-                className="inline-flex h-9 items-center rounded-xl px-3 text-xs font-medium text-foreground/70 transition-colors hover:text-foreground disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-border bg-white text-sm font-medium text-foreground/70 transition-colors hover:text-foreground disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -788,148 +764,130 @@ export default function OrderDetailsModal({
                 type="button"
                 onClick={saveEdit}
                 disabled={pending}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-foreground px-4 text-xs font-semibold text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-xl bg-foreground text-sm font-semibold text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pending ? (
                   <>
-                    <Loader2 size={13} className="animate-spin" />
+                    <Loader2 size={15} className="animate-spin" />
                     Saving…
                   </>
                 ) : (
                   <>
-                    <Check size={13} />
+                    <Check size={15} />
                     Save changes
                   </>
                 )}
               </button>
-            </>
+            </div>
           ) : (
+            /* Stacked so nothing can slide off a narrow screen: the payment
+               action and the share action each own a full-width row, and the
+               low-frequency utilities sit in an equal-thirds grid below. */
             <>
-              <div className="flex items-center gap-1.5">
+              {isPaid ? (
+                <div className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-success/10 text-sm font-semibold text-success ring-1 ring-success/20">
+                  <Check size={15} />
+                  Payment received
+                </div>
+              ) : confirming ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => !pending && setConfirming(false)}
+                    disabled={pending}
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-border bg-white text-sm font-medium text-foreground/70 transition-colors hover:text-foreground disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmPaid}
+                    disabled={pending}
+                    className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-xl bg-success text-sm font-semibold text-white transition-colors hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {pending ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <Check size={15} />
+                        Confirm payment
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  disabled={busy}
+                  className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-foreground text-sm font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
+                >
+                  <Check size={15} />
+                  Mark as paid
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSharePrimary}
+                disabled={busy || shareBusy || !shareFile}
+                title={
+                  canShareFile
+                    ? "Send the invoice PDF to the customer (WhatsApp, email…)"
+                    : "Download the invoice PDF to attach to your message"
+                }
+                className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-white text-sm font-semibold text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
+              >
+                {shareBusy || !shareFile ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : canShareFile ? (
+                  <Share2 size={15} />
+                ) : (
+                  <Download size={15} />
+                )}
+                {shareBusy || !shareFile
+                  ? "Preparing…"
+                  : canShareFile
+                    ? "Share invoice PDF"
+                    : "Download invoice PDF"}
+              </button>
+
+              <div className="grid grid-cols-3 gap-2">
                 <Link
                   href={`/admin/invoices/${order.invoice}`}
                   target="_blank"
                   rel="noopener"
                   title="Open the invoice PDF (admin view)"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground"
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-white text-xs font-medium text-foreground/80 transition-colors hover:text-foreground"
                 >
-                  <Download size={14} />
-                  PDF
+                  <FileText size={14} />
+                  Invoice
                 </Link>
                 <button
                   type="button"
-                  onClick={handleSharePrimary}
-                  disabled={busy || shareBusy || !shareFile}
-                  title={
-                    canShareFile
-                      ? "Send the invoice PDF to the customer (WhatsApp, email…)"
-                      : "Download the invoice PDF to attach to your message"
-                  }
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-foreground px-3.5 text-xs font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
+                  onClick={startEdit}
+                  disabled={busy}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-white text-xs font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
                 >
-                  {shareBusy || !shareFile ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : canShareFile ? (
-                    <Share2 size={14} />
-                  ) : (
-                    <Download size={14} />
-                  )}
-                  {shareBusy || !shareFile
-                    ? "Preparing…"
-                    : canShareFile
-                      ? "Share PDF"
-                      : "Download"}
+                  <Pencil size={14} />
+                  Edit
                 </button>
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  disabled={busy || !shareUrl}
-                  title="Copy the customer link (no login needed)"
-                  aria-label="Copy customer link"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-white text-foreground/70 transition-colors hover:text-foreground disabled:opacity-50"
-                >
-                  {shareCopied ? (
-                    <Check size={14} className="text-emerald-600" />
-                  ) : (
-                    <Link2 size={14} />
-                  )}
-                </button>
-                <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={busy}
                   title="Delete this order"
-                  aria-label="Delete order"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-white text-coral transition-colors hover:bg-coral/10 disabled:opacity-60"
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-white text-xs font-medium text-coral transition-colors hover:bg-coral/10 disabled:opacity-60"
                 >
                   <Trash2 size={14} />
+                  Delete
                 </button>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={startEdit}
-                  disabled={busy}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-3.5 text-xs font-semibold text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
-                >
-                  <Pencil size={14} />
-                  Edit
-                </button>
-
-                {isPaid ? (
-                  <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-success/10 px-4 text-xs font-semibold text-success ring-1 ring-success/20">
-                    <Check size={14} />
-                    Paid
-                  </span>
-                ) : confirming ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-medium text-foreground/70">
-                      Confirm?
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => !pending && setConfirming(false)}
-                      disabled={pending}
-                      className="inline-flex h-9 items-center rounded-xl px-3 text-xs font-medium text-foreground/70 transition-colors hover:text-foreground disabled:opacity-60"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmPaid}
-                      disabled={pending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-success px-4 text-xs font-semibold text-white transition-colors hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {pending ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" />
-                          Saving…
-                        </>
-                      ) : (
-                        <>
-                          <Check size={13} />
-                          Confirm paid
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirming(true)}
-                    disabled={busy}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-foreground px-4 text-xs font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
-                  >
-                    <Clock size={13} />
-                    Mark as paid
-                  </button>
-                )}
               </div>
             </>
           )}
-          </div>
         </footer>
       </div>
     </div>
