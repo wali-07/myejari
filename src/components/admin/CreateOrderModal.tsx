@@ -32,6 +32,8 @@ interface FormState {
   paymentMethod: PaymentMethodChoice;
   myEjariPrice: string;
   wholesalePrice: string;
+  /** Fee paid to a referral partner (blank = none). Comes out of profit. */
+  referralFee: string;
   wholesaler: string;
   /** Business activity from the TL (Vision-extracted, editable). */
   activity: string;
@@ -49,6 +51,7 @@ const DEFAULTS: FormState = {
   paymentMethod: "Bank Transfer",
   myEjariPrice: "",
   wholesalePrice: "",
+  referralFee: "",
   wholesaler: "",
   activity: "",
   activityCode: "",
@@ -149,8 +152,10 @@ export default function CreateOrderModal({ wholesalers }: Props) {
 
   const myEjariPrice = Number(form.myEjariPrice) || 0;
   const wholesalePrice = Number(form.wholesalePrice) || 0;
+  const referralFee = Number(form.referralFee) || 0;
   const previewGateway = calculateGatewayFees(myEjariPrice, form.paymentMethod);
-  const previewNet = myEjariPrice - previewGateway - wholesalePrice;
+  const previewNet =
+    myEjariPrice - previewGateway - wholesalePrice - referralFee;
   const canSubmit = !!companyName.trim() && myEjariPrice > 0;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -171,6 +176,7 @@ export default function CreateOrderModal({ wholesalers }: Props) {
         paymentMethod: form.paymentMethod,
         myEjariPrice,
         wholesalePrice,
+        referralFee,
         wholesaler: form.wholesaler,
         tradeLicensePath: uploaded?.storedPath,
         activity: form.activity || undefined,
@@ -465,6 +471,13 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                     </Field>
                   </div>
 
+                  <Field label="Referral fee">
+                    <CurrencyInput
+                      value={form.referralFee}
+                      onChange={(v) => update("referralFee", v)}
+                    />
+                  </Field>
+
                   <Field label="Payment method">
                     <SegmentedToggle
                       value={form.paymentMethod}
@@ -482,6 +495,12 @@ export default function CreateOrderModal({ wholesalers }: Props) {
                   <dl className="mt-2 space-y-1.5 text-sm">
                     <SummaryRow label="GMV" value={formatAED(myEjariPrice)} />
                     <SummaryRow label="Cost" value={formatAED(wholesalePrice)} />
+                    {referralFee > 0 && (
+                      <SummaryRow
+                        label="Referral fee"
+                        value={formatAED(referralFee)}
+                      />
+                    )}
                     <SummaryRow
                       label={
                         form.paymentMethod === "Card"

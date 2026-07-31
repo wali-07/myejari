@@ -40,6 +40,8 @@ interface CreateOrderInput {
   paymentMethod: PaymentMethod;
   myEjariPrice: number;
   wholesalePrice: number;
+  /** Fee paid to a referral partner, deducted from profit. Defaults to 0. */
+  referralFee: number;
   wholesaler: string;
   tradeLicensePath?: string;
   /** Business activity from the trade license (Vision-extracted or manual). */
@@ -77,6 +79,8 @@ export async function createOrder(
     return { ok: false, error: "Customer amount must be positive" };
   if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
     return { ok: false, error: "Wholesale price must be ≥ 0" };
+  if (!Number.isFinite(input.referralFee) || input.referralFee < 0)
+    return { ok: false, error: "Referral fee must be ≥ 0" };
 
   try {
     // Invoice number = max(existing) + 1. Deleting an unpaid order frees
@@ -91,7 +95,7 @@ export async function createOrder(
     const margin = input.myEjariPrice - input.wholesalePrice;
     const commissionPct =
       input.myEjariPrice > 0 ? margin / input.myEjariPrice : 0;
-    const finalProfit = margin - gatewayFees;
+    const finalProfit = margin - gatewayFees - input.referralFee;
 
     const officeType =
       input.officeType && OFFICE_TYPES.includes(input.officeType)
@@ -107,6 +111,7 @@ export async function createOrder(
       paymentMethodRaw: input.paymentMethod,
       wholesaler: input.wholesaler.trim(),
       wholesalePrice: input.wholesalePrice,
+      referralFee: input.referralFee || undefined,
       myEjariPrice: input.myEjariPrice,
       margin,
       commissionPct,
@@ -145,6 +150,8 @@ interface UpdateOrderInput {
   paymentMethod: PaymentMethod;
   myEjariPrice: number;
   wholesalePrice: number;
+  /** Fee paid to a referral partner, deducted from profit. Defaults to 0. */
+  referralFee: number;
   wholesaler: string;
   paymentStatus: PaymentStatus;
   activity?: string;
@@ -172,6 +179,8 @@ export async function updateOrder(
     return { ok: false, error: "Customer amount must be positive" };
   if (!Number.isFinite(input.wholesalePrice) || input.wholesalePrice < 0)
     return { ok: false, error: "Wholesale price must be ≥ 0" };
+  if (!Number.isFinite(input.referralFee) || input.referralFee < 0)
+    return { ok: false, error: "Referral fee must be ≥ 0" };
   if (input.paymentStatus !== "paid" && input.paymentStatus !== "unpaid")
     return { ok: false, error: "Invalid payment status" };
 
@@ -184,7 +193,7 @@ export async function updateOrder(
         input.myEjariPrice,
         input.paymentMethod
       );
-      const finalProfit = margin - gatewayFees;
+      const finalProfit = margin - gatewayFees - input.referralFee;
       const officeType =
         input.officeType && OFFICE_TYPES.includes(input.officeType)
           ? input.officeType
@@ -197,6 +206,7 @@ export async function updateOrder(
         paymentMethodRaw: input.paymentMethod,
         wholesaler: input.wholesaler.trim(),
         wholesalePrice: input.wholesalePrice,
+        referralFee: input.referralFee || undefined,
         myEjariPrice: input.myEjariPrice,
         margin,
         commissionPct,

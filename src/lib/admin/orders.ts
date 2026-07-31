@@ -41,6 +41,11 @@ export interface Order {
   wholesaler: string;
   /** What we paid the business center (cost). */
   wholesalePrice: number;
+  /**
+   * Fee paid to a partner who referred this order to us. Comes straight out
+   * of our profit. Optional — most orders have none; treat missing as 0.
+   */
+  referralFee?: number;
   /** What the customer paid us (revenue). */
   myEjariPrice: number;
   /** myEjariPrice − wholesalePrice. */
@@ -49,7 +54,7 @@ export interface Order {
   commissionPct: number;
   /** Card-processor fees we ate. */
   gatewayFees: number;
-  /** Margin − gatewayFees (− full refund cost where applicable). */
+  /** Margin − gatewayFees − referralFee (− full refund cost where applicable). */
   finalProfit: number;
   refundStatus: RefundStatus;
   /** Customer payment state. New orders start unpaid; toggled via Mark Paid. */
@@ -64,6 +69,8 @@ export interface Order {
   tradeLicensePath?: string;
   /** Repo-relative path to the wholesaler-issued invoice/receipt for this order. */
   wholesalerInvoicePath?: string;
+  /** Repo-relative path to the referral partner's invoice for the referral fee. */
+  referralInvoicePath?: string;
   /**
    * Business activity (or activities, comma-separated) extracted from the
    * trade license — e.g. "Management Consultancy, IT Services". Used to
@@ -202,14 +209,20 @@ export function calculateGatewayFees(
 }
 
 /**
- * Per-order Net Revenue = GMV − payment gateway fee − cost.
+ * Per-order Net Revenue = GMV − payment gateway fee − cost − referral fee.
  *
- * Bank Transfer orders carry zero gateway fee, so this collapses to
- * (GMV − cost) for them. Refund flags are surfaced separately via the
- * refund badge — this number is the accounting view, not the realised one.
+ * Bank Transfer orders carry zero gateway fee, and most orders carry no
+ * referral fee, so this collapses to (GMV − cost) for them. Refund flags are
+ * surfaced separately via the refund badge — this number is the accounting
+ * view, not the realised one.
  */
 export function netRevenueOf(order: Order): number {
-  return order.myEjariPrice - order.gatewayFees - order.wholesalePrice;
+  return (
+    order.myEjariPrice -
+    order.gatewayFees -
+    order.wholesalePrice -
+    (order.referralFee ?? 0)
+  );
 }
 
 /**

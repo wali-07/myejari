@@ -60,6 +60,7 @@ interface EditForm {
   paymentMethod: PaymentMethodChoice;
   myEjariPrice: string;
   wholesalePrice: string;
+  referralFee: string;
   wholesaler: string;
   paymentStatus: PaymentStatus;
   activity: string;
@@ -86,6 +87,7 @@ function formFromOrder(order: Order): EditForm {
     paymentMethod: order.paymentMethod === "Card" ? "Card" : "Bank Transfer",
     myEjariPrice: String(order.myEjariPrice ?? ""),
     wholesalePrice: String(order.wholesalePrice ?? ""),
+    referralFee: order.referralFee ? String(order.referralFee) : "",
     wholesaler: order.wholesaler ?? "",
     paymentStatus: order.paymentStatus === "paid" ? "paid" : "unpaid",
     activity: order.activity ?? "",
@@ -122,6 +124,7 @@ export default function OrderDetailsModal({
   const [shareNonce, setShareNonce] = useState(0);
   const [shareForInvoice, setShareForInvoice] = useState(order.invoice);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const referralFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const busy = pending || uploading;
 
@@ -233,6 +236,7 @@ export default function OrderDetailsModal({
         paymentMethod: form.paymentMethod,
         myEjariPrice,
         wholesalePrice,
+        referralFee: Number(form.referralFee) || 0,
         wholesaler: form.wholesaler,
         paymentStatus: form.paymentStatus,
         activity: form.activity || undefined,
@@ -354,11 +358,44 @@ export default function OrderDetailsModal({
     e.target.value = "";
   }
 
+  async function handleReferralFile(file: File) {
+    setError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("invoice", order.invoice);
+      fd.append("referralInvoice", file);
+      const res = await fetch("/api/admin/upload-referral-invoice", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error ?? "Upload failed");
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onPickReferralFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void handleReferralFile(file);
+    e.target.value = "";
+  }
+
   // Live preview of the money math while editing.
   const previewGmv = Number(form.myEjariPrice) || 0;
   const previewCost = Number(form.wholesalePrice) || 0;
+  const previewReferral = Number(form.referralFee) || 0;
   const previewGateway = calculateGatewayFees(previewGmv, form.paymentMethod);
-  const previewNet = previewGmv - previewGateway - previewCost;
+  const previewNet =
+    previewGmv - previewGateway - previewCost - previewReferral;
 
   return (
     <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4">
@@ -522,6 +559,13 @@ export default function OrderDetailsModal({
                 </Field>
               </div>
 
+              <Field label="Referral fee">
+                <CurrencyInput
+                  value={form.referralFee}
+                  onChange={(v) => update("referralFee", v)}
+                />
+              </Field>
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Payment method">
                   <SegmentedToggle
@@ -548,6 +592,12 @@ export default function OrderDetailsModal({
                 <dl className="mt-2 space-y-1.5 text-sm">
                   <PreviewRow label="GMV" value={formatAED(previewGmv)} />
                   <PreviewRow label="Cost" value={formatAED(previewCost)} />
+                  {previewReferral > 0 && (
+                    <PreviewRow
+                      label="Referral fee"
+                      value={formatAED(previewReferral)}
+                    />
+                  )}
                   <PreviewRow
                     label={
                       form.paymentMethod === "Card"
@@ -591,6 +641,12 @@ export default function OrderDetailsModal({
                     label="Commission"
                     value={formatPct(order.commissionPct)}
                   />
+                  {!!order.referralFee && (
+                    <MoneyRow
+                      label="Referral fee"
+                      value={formatAEDPrecise(order.referralFee)}
+                    />
+                  )}
                   <MoneyRow
                     label={isCard ? "Ziina fee (incl. 5% VAT)" : "Gateway fee"}
                     value={formatAEDPrecise(order.gatewayFees)}
@@ -695,6 +751,52 @@ export default function OrderDetailsModal({
                     </button>
                   }
                 />
+                {(!!order.referralFee || !!order.referralInvoicePath) && (
+                  <DocRow
+                    title="Referral invoice"
+                    subtitle={
+                      order.referralInvoicePath
+                        ? "Invoice from the referral partner"
+                        : "Not uploaded yet"
+                    }
+                    icon={<FileText size={15} />}
+                    ready={!!order.referralInvoicePath}
+                    href={
+                      order.referralInvoicePath
+                        ? storagePathToUrl(order.referralInvoicePath)
+                        : undefined
+                    }
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => referralFileInputRef.current?.click()}
+                        disabled={busy}
+                        className={
+                          order.referralInvoicePath
+                            ? "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-border bg-white px-2.5 text-[11px] font-medium text-foreground/80 transition-colors hover:text-foreground disabled:opacity-60"
+                            : "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-foreground px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-primary disabled:opacity-60"
+                        }
+                      >
+                        {uploading ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            Uploading…
+                          </>
+                        ) : order.referralInvoicePath ? (
+                          <>
+                            <ReplaceAll size={12} />
+                            Replace
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={12} />
+                            Upload
+                          </>
+                        )}
+                      </button>
+                    }
+                  />
+                )}
                 <DocRow
                   title="Trade license"
                   subtitle={
@@ -716,6 +818,13 @@ export default function OrderDetailsModal({
                 type="file"
                 accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.heif"
                 onChange={onPickFile}
+                className="hidden"
+              />
+              <input
+                ref={referralFileInputRef}
+                type="file"
+                accept="application/pdf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.heic,.heif"
+                onChange={onPickReferralFile}
                 className="hidden"
               />
             </>

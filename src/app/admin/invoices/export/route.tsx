@@ -73,7 +73,19 @@ export async function GET() {
           }
         }
 
-        // 3. Trade License (if uploaded).
+        // 3. Referral partner's invoice (if uploaded).
+        if (order.referralInvoicePath) {
+          const buf = await fetchUploadBytes(order.referralInvoicePath);
+          if (buf) {
+            archive.append(buf, {
+              name: `${folder}/referral-invoice${extFromRef(
+                order.referralInvoicePath
+              )}`,
+            });
+          }
+        }
+
+        // 4. Trade License (if uploaded).
         if (order.tradeLicensePath) {
           const buf = await fetchUploadBytes(order.tradeLicensePath);
           if (buf) {
